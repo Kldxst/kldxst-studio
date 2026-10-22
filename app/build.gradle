@@ -20,7 +20,7 @@ def hasKeystore = keystoreProperties.getProperty("storeFile") != null
 
 android {
     namespace 'com.kldxst.studio'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.kldxst.studio"
