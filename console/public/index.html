@@ -126,7 +126,7 @@
   <section class="view active" id="view-device">
     <div class="card">
       <h2>连接</h2>
-      <p class="hint">手环的连接由「小米运动健康」代管，本应用不直接占用蓝牙。先在小米运动健康里连上手环，再回到这里点连接。</p>
+      <p class="hint">先在小米运动健康里连上手环，再回来点连接。</p>
       <div id="hostList"></div>
       <div class="row" style="margin-top:12px">
         <button class="primary grow" id="btnConnect">连接手环</button>
@@ -145,10 +145,7 @@
 
     <div class="card">
       <h2>直连通道</h2>
-      <p class="hint">
-        手机自己占蓝牙，用登录小米账号拿到的 authkey 建立会话 —— 与 AstroBox / AzkiDeck 同一条路。
-        <b>开始前请先强制停止小米运动健康</b>，否则蓝牙被它占着，连接一定失败。
-      </p>
+      <p class="hint">需要 authkey。<b>开始前请强制停止小米运动健康</b>，否则蓝牙被占用，连接会失败。</p>
       <div class="row">
         <button class="primary grow" id="btnScan">扫描设备</button>
         <button class="ghost" id="btnBonded">已配对</button>
@@ -165,7 +162,7 @@
 
     <div class="card">
       <h2>通知推送</h2>
-      <p class="hint">把手机上的消息推到手环。这条通道不受快应用包名限制，任何作品都能用。</p>
+      <p class="hint">把手机上的消息推到手环。</p>
       <label class="field"><span>标题</span><input id="ntTitle" placeholder="K社工坊" maxlength="80"></label>
       <label class="field"><span>内容</span><textarea id="ntBody" rows="2" maxlength="400" placeholder="今天的手环状态不错"></textarea></label>
       <button class="block" id="btnNotify">发送到手表</button>
@@ -182,10 +179,7 @@
   <section class="view" id="view-bridge">
     <div class="card">
       <h2>网桥</h2>
-      <p class="hint">
-        快应用要联网（激活、云存档、排行榜）时，由本应用代它发 HTTP。
-        打开开关后即使锁屏也会保持。
-      </p>
+      <p class="hint">快应用联网时由本应用代发请求，锁屏后仍保持。</p>
       <div class="kv"><span>状态</span><b id="brState">已停止</b></div>
       <div class="kv"><span>会话</span><b id="brSessions">0</b></div>
       <div class="kv"><span>请求 / 流量</span><b id="brCounters">0 / 0 B</b></div>
@@ -202,7 +196,7 @@
 
     <div class="card">
       <h2>出口策略</h2>
-      <p class="hint">白名单留空表示不限制域名（仍会拦截内网地址）。改完立即生效，并写进本机加密存储。</p>
+      <p class="hint">白名单留空表示不限制域名，内网地址始终拦截。改完立即生效。</p>
       <label class="field"><span>允许的包名（逗号分隔，留空=不限）</span><input id="polPkg" placeholder="com.kldxst.youjing,com.kldxst.afterdoom"></label>
       <label class="field"><span>域名白名单</span><input id="polAllow" placeholder="kldxst.me,bandbbs.cn"></label>
       <label class="field"><span>域名黑名单</span><input id="polBlock" placeholder="留空即可"></label>
@@ -226,7 +220,7 @@
   <section class="view" id="view-settings">
     <div class="card">
       <h2>激活状态</h2>
-      <p class="hint">输入手环「关于」页显示的 8 位设备码，查询这台设备已获得的授权。许可证本身由手环自己联网取回，不需要在这里传输。</p>
+      <p class="hint">输入手环「关于」页的 8 位设备码，查询这台设备已获得的授权。</p>
       <label class="field"><span>设备码</span><input id="deviceCode" placeholder="例如 K7M2QP4X" maxlength="8" autocapitalize="characters"></label>
       <button class="block" id="btnQuery">查询授权</button>
       <div id="licOut" style="margin-top:10px"></div>
@@ -234,7 +228,7 @@
 
     <div class="card">
       <h2>authkey</h2>
-      <p class="hint">保存在系统 Keystore 加密的本地存储里，不上传。留空保存即删除。</p>
+      <p class="hint">不上传。留空保存即删除。</p>
       <label class="field"><span>authkey（32 位十六进制）</span><input id="authkey" placeholder="不填则清除" maxlength="64"></label>
       <div class="row"><button class="grow" id="btnAkSave">保存</button><button class="ghost" id="btnAkLoad">读取</button></div>
     </div>
@@ -245,10 +239,7 @@
       <div class="kv"><span>应用版本</span><b id="aboutApp">—</b></div>
       <div class="kv"><span>会话令牌</span><b id="aboutToken">—</b></div>
       <div class="sep"></div>
-      <p class="hint" style="margin:0">
-        界面与流程全部来自服务端，所以后续更新只需要刷新这一页，不必重装应用。
-        原生侧只保留三件不会变的能力：设备通道、网桥引擎、本地加密存储。
-      </p>
+      <p class="hint" style="margin:0">更新只需要刷新这一页，不必重装应用。</p>
       <div class="row" style="margin-top:12px">
         <button class="grow" id="btnReload">重新加载控制台</button>
         <button class="ghost" id="btnDiag">导出诊断</button>

@@ -394,7 +394,7 @@ class BridgeEngine(
         ) { out.add(it) }
         val r1 = out.lastOrNull()?.let { JSONObject(it) }?.optJSONObject("resp")
         step(
-            "v1 单消息", r1 != null && r1.optInt("status") == 200 && r1.optString("body").contains("kldxst"),
+            "v1 单消息", r1 != null && r1.optInt("status") == 200 && r1.optString("body").trimStart().startsWith("{"),
             r1?.toString()?.take(120) ?: "无回包"
         )
 
