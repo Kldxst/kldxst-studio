@@ -2,6 +2,7 @@ package com.kldxst.studio.core
 
 import android.content.Context
 import com.kldxst.studio.BuildConfig
+import com.kldxst.studio.bt.DirectLink
 import com.kldxst.studio.bridge.BridgeEngine
 import com.kldxst.studio.bridge.BridgePolicy
 import com.kldxst.studio.bridge.OkHttpFetcher
@@ -35,6 +36,9 @@ object Hub {
 
     val wear: WearLink by lazy { WearLink(app) }
 
+    /** 直连通道（自行占蓝牙，authkey 握手）。与官方 SDK 通道并存，谁可用走谁 */
+    val direct: DirectLink by lazy { DirectLink(app) { line -> log.add("[直连] $line") } }
+
     private val fetcher: OkHttpFetcher by lazy { OkHttpFetcher { policy } }
 
     val bridge: BridgeEngine by lazy {
@@ -59,7 +63,7 @@ object Hub {
         "rpkInspect" to true,
         "licensePush" to true,
         "installPush" to false,
-        "bleProtocol" to false
+        "bleProtocol" to true
     )
 
     fun buildInfo(): Map<String, Any> = mapOf(

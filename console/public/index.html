@@ -144,6 +144,26 @@
     </div>
 
     <div class="card">
+      <h2>直连通道</h2>
+      <p class="hint">
+        手机自己占蓝牙，用登录小米账号拿到的 authkey 建立会话 —— 与 AstroBox / AzkiDeck 同一条路。
+        <b>开始前请先强制停止小米运动健康</b>，否则蓝牙被它占着，连接一定失败。
+      </p>
+      <div class="row">
+        <button class="primary grow" id="btnScan">扫描设备</button>
+        <button class="ghost" id="btnBonded">已配对</button>
+      </div>
+      <div id="peerList" style="margin-top:10px"></div>
+      <label class="field" style="margin-top:12px"><span>authkey（32 位十六进制，存加密存储）</span>
+        <input id="dkKey" maxlength="32" placeholder="登录小米账号后取回" autocapitalize="off" spellcheck="false"></label>
+      <div class="row">
+        <button class="grow" id="btnHandshake">握手测试</button>
+        <button class="ghost" id="btnDkClose">断开</button>
+      </div>
+      <div id="dkOut" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
       <h2>通知推送</h2>
       <p class="hint">把手机上的消息推到手环。这条通道不受快应用包名限制，任何作品都能用。</p>
       <label class="field"><span>标题</span><input id="ntTitle" placeholder="K社工坊" maxlength="80"></label>
@@ -414,6 +434,64 @@
     if (!body) { toast('先写点内容'); return; }
     var r = await call('wear.notify', { title: title, message: body });
     toast(r.ok ? '已发送' : (r.message || '发送失败'));
+  };
+
+  /* ─────────── 直连 ─────────── */
+  function renderPeers(peers, connected) {
+    if (!peers || !peers.length) { $('peerList').innerHTML = '<div class="empty">没有扫描到设备</div>'; return; }
+    $('peerList').innerHTML = peers.map(function (p, i) {
+      var label = p.name || p.address;
+      var badge = p.xiaomi ? '<span class="tag ok">小米</span>' : '<span class="tag">' + (p.rssi || 0) + 'dBm</span>';
+      return '<div class="kv"><span>' + esc(label) + '</span><b>' + badge +
+        (connected ? '' : ' <button data-addr="' + esc(p.address) + '" class="pk">连接</button>') + '</b></div>';
+    }).join('');
+  }
+
+  $('peerList').addEventListener('click', async function (ev) {
+    var b = ev.target.closest('button[data-addr]');
+    if (!b) return;
+    b.disabled = true; b.textContent = '连接中';
+    var r = await call('direct.connect', { address: b.dataset.addr });
+    b.disabled = false; b.textContent = '连接';
+    toast(r.ok ? ('已连接 ' + r.data.device) : (r.message || '连接失败'));
+  });
+
+  $('btnScan').onclick = async function () {
+    var btn = this; btn.disabled = true; btn.textContent = '扫描中…';
+    $('peerList').innerHTML = '<div class="empty">正在扫描（约 8 秒）…</div>';
+    var r = await call('direct.scan', { timeoutMs: 8000 });
+    btn.disabled = false; btn.textContent = '扫描设备';
+    if (!r.ok) { toast(r.message || '扫描失败'); $('peerList').innerHTML = ''; return; }
+    renderPeers(r.data.peers, false);
+  };
+
+  $('btnBonded').onclick = async function () {
+    var r = await call('direct.status');
+    if (!r.ok) { toast(r.message || '读取失败'); return; }
+    var list = (r.data.bonded || []).map(function (s) {
+      var parts = String(s).split('|');
+      return { name: parts[0], address: parts[1], xiaomi: true, rssi: 0 };
+    });
+    renderPeers(list, r.data.connected);
+    if (r.data.connected) toast('当前已连接 ' + (r.data.peer && r.data.peer.name || '设备'));
+  };
+
+  $('btnHandshake').onclick = async function () {
+    var key = ($('dkKey').value || '').trim();
+    if (!/^[0-9a-fA-F]{32}$/.test(key)) { toast('authkey 应为 32 位十六进制'); return; }
+    var out = $('dkOut');
+    out.innerHTML = '<div class="empty">握手中…</div>';
+    var r = await call('direct.handshake', { authkey: key });
+    if (!r.ok) { out.innerHTML = '<div class="empty">' + esc(r.message || '握手失败') + '</div>'; return; }
+    out.innerHTML = '<div class="kv"><span>握手帧</span><b>' + esc(String(r.data.frame).slice(0, 48)) + '…</b></div>' +
+      '<div class="kv"><span>回包</span><b>' + esc(r.data.reply || '（无）') + '</b></div>' +
+      '<p class="hint" style="margin:8px 0 0">' + esc(r.data.note || '') + '</p>';
+  };
+
+  $('btnDkClose').onclick = async function () {
+    await call('direct.close');
+    toast('已断开');
+    $('dkOut').innerHTML = '';
   };
 
   /* ─────────── 作品 ─────────── */

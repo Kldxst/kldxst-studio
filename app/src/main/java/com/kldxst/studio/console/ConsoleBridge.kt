@@ -4,6 +4,7 @@ import android.content.Context
 import android.webkit.JavascriptInterface
 import com.kldxst.studio.BuildConfig
 import com.kldxst.studio.bridge.BridgePolicy
+import com.kldxst.studio.bt.DirectLink
 import com.kldxst.studio.core.Hub
 import com.kldxst.studio.install.Rpk
 import com.kldxst.studio.secure.Vault
@@ -18,6 +19,8 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit
 
 /**
@@ -191,6 +194,68 @@ class ConsoleBridge(
             ok(JSONObject())
         }
 
+        "direct.status" -> {
+            val p = Hub.direct.peer
+            ok(
+                JSONObject()
+                    .put("available", Hub.direct.available())
+                    .put("connected", Hub.direct.connected)
+                    .put("peer", p?.let { JSONObject().put("name", it.name).put("address", it.address) } ?: JSONObject.NULL)
+                    .put("bonded", JSONObject.wrap(Hub.direct.bonded().map { it.name + "|" + it.address }))
+            )
+        }
+
+        "direct.scan" -> {
+            val peers = withContext(Dispatchers.IO) { scanDirect(a.optInt("timeoutMs", 8000).coerceIn(3000, 20000).toLong()) }
+            ok(
+                JSONObject().put(
+                    "peers",
+                    JSONObject.wrap(peers.map {
+                        JSONObject().put("name", it.name).put("address", it.address)
+                            .put("rssi", it.rssi).put("xiaomi", it.xiaomi)
+                    })
+                )
+            )
+        }
+
+        "direct.connect" -> {
+            val address = a.optString("address")
+            require(address.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) { "MAC 地址格式不对" }
+            val name = Hub.direct.connect(address)
+            ok(JSONObject().put("device", name).put("address", address))
+        }
+
+        "direct.handshake" -> {
+            val key = a.optString("authkey")
+            require(key.matches(Regex("[0-9a-fA-F]{32}"))) { "authkey 应为 32 位十六进制" }
+            val r = Hub.direct.handshake(key)
+            val wrapped = JSONObject.wrap(r)
+            ok(if (wrapped is JSONObject) wrapped else JSONObject())
+        }
+
+        "direct.frame" -> {
+            val hex = a.optString("hex").replace(" ", "")
+            require(hex.length in 2..4096 && hex.length % 2 == 0 && hex.matches(Regex("[0-9a-fA-F]+"))) { "帧应为偶数长度十六进制" }
+            val bytes = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+            Hub.direct.send(bytes)
+            ok(JSONObject().put("sent", bytes.size))
+        }
+
+        "direct.profile" -> {
+            val p = Hub.direct.profile.copy(
+                magic = a.optInt("magic", Hub.direct.profile.magic),
+                littleEndianLength = a.optBoolean("littleEndianLength", Hub.direct.profile.littleEndianLength),
+                authMode = a.optString("authMode", Hub.direct.profile.authMode)
+            )
+            Hub.direct.profile = p
+            ok(JSONObject().put("magic", p.magic).put("littleEndianLength", p.littleEndianLength).put("authMode", p.authMode))
+        }
+
+        "direct.close" -> {
+            Hub.direct.close()
+            ok(JSONObject())
+        }
+
         "rpk.inspectUrl" -> {
             val url = a.optString("url")
             val expect = a.optString("sha256").lowercase()
@@ -203,6 +268,13 @@ class ConsoleBridge(
     }
 
     /* ------------------------------------------------------------------ */
+
+    /** 阻塞等首批扫描结果：控制台是一次请求一次响应，不需要流式 */
+    private fun scanDirect(timeoutMs: Long): List<DirectLink.Peer> {
+        val queue = LinkedBlockingQueue<List<DirectLink.Peer>>()
+        Hub.direct.scan({ list -> queue.offer(list) }, { err -> Hub.log.add("[直连] 扫描失败：$err") })
+        return queue.poll(timeoutMs, TimeUnit.MILLISECONDS) ?: emptyList()
+    }
 
     private fun inspectRemote(url: String, expectSha: String): JSONObject {
         val resp = http.newCall(Request.Builder().url(url).header("User-Agent", "KldxstStudio/1.0").build())

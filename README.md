@@ -40,36 +40,53 @@
 
 | 能力 | 状态 | 通道 |
 |---|---|---|
-| 枚举/连接已配对设备 | ✅ | 官方 SDK（小米运动健康代管蓝牙） |
+| 枚举/连接已配对设备（官方通道） | ✅ | XMS Wearable SDK（小米运动健康代管蓝牙） |
 | 设备状态（电量/充电/佩戴/睡眠） | ✅ | `NodeApi.query` |
-| 查询快应用是否安装 | ✅ | `NodeApi.isWearAppInstalled` |
-| 拉起快应用 | ✅ | `NodeApi.launchWearApp` |
+| 查询快应用是否安装 / 拉起快应用 | ✅ | `NodeApi` |
 | 推送通知到手环 | ✅ | `NotifyApi.sendNotify` |
 | 设备管理授权 | ✅ | `AuthApi` |
-| 网桥（代发 HTTP，v1–v3） | ✅ | 自有引擎 + SDK 消息通道 |
+| **直连扫描（BLE，识别 FE95）** | ✅ | 自建 `DirectLink` |
+| **直连连接（SPP RFCOMM 0x1101）** | ✅ | 自建 `DirectLink` |
+| **authkey 握手（AES-128-ECB）** | ⚠️ 已实现，回包语义待真机校准 | 自建 `DirectLink` |
+| 网桥（代发 HTTP，v1–v3） | ✅ | 自有引擎 + 消息通道 |
 | 网桥协议自检（无需手环） | ✅ | 引擎内置 4 条主路径用例 |
 | 安装包体检（manifest/哈希/路径穿越） | ✅ | 本地 zip 解析 + SHA-256 |
 | 授权状态查询（全作品） | ✅ | Worker → `active.kldxst.me/api/claim` |
 | 授权发放 | ✅ | 手环自取（`@system.fetch`）+ 兑换码 |
-| **把 rpk 安装进手环** | ❌ | 官方 SDK **没有**安装 API |
-| **通用网桥（任意包名快应用）** | ❌ | interconnect 身份绑定，见下 |
+| 把 rpk 安装进手环 | ❌ | 需完整 MiWear 业务层，见下 |
 
-### 两条硬约束（不是没做，是做不到）
+### 连接方式：直连为主，官方 SDK 兜底
 
-**1. 官方 SDK 没有「安装 rpk」的接口。**
-`NodeApi` 只有 `getConnectedNodes / isWearAppInstalled / launchWearApp / query / subscribe / unsubscribe`。
-把资源包写进手环要走小米私有蓝牙协议（AzkiDeck 用 2.2MB 的 `libazvfnative.so` 实现，
-AstroBox 用闭源 Rust core 实现）。要覆盖这一步只能自研 BLE/SPP 协议栈，
-本仓库把位置留好了（`install/Rpk.kt` 已完成体检，缺的只是传输层），但不假装已实现。
+AzkiDeck 与 AstroBox 都不是「让小米运动健康代转」——它们**自己占蓝牙**：
+登录小米账号取回设备的 authkey，用 SPP（RFCOMM `0x1101`）或 BLE（服务 `FE95`）直连，
+authkey 做握手。前提是**先让小米运动健康让出蓝牙**（否则端口被它占着，连接必失败）。
 
-**2. interconnect 的身份是「包名 + 签名」双绑定。**
-快应用通过 `@system.interconnect` 只能找到 **包名相同、签名相同** 的安卓端。
-一个 APK 只有一个 `applicationId`，因此**无法**用一个包同时服务六个作品。
-AstroBox 能桥任意包名，是因为它自己实现了蓝牙协议栈，绕过了系统路由。
+本仓库按这条路径实现了 `bt/DirectLink.kt`：扫描 → SPP 连接 → authkey 握手 → 帧收发。
+帧编码参数（magic、长度字节序、auth 帧类型）**由服务端下发**，校准时只改服务端、不重新打包。
 
-**结论**：本 APK 的网桥对「与本应用同包名的快应用」生效；其余作品走
-**寄存自取**——手环自己 `POST /api/claim` 取回许可证，这条路不需要网桥，
-在支持 `@system.fetch` 的机型（9 Pro）上开箱可用。
+官方 SDK 通道保留下来做兜底：它不需要抢蓝牙，通知推送、拉起快应用、查询安装状态这些
+不涉及私有协议的操作可以立刻用。
+
+### 一条仍然存在的硬约束
+
+**把 rpk 写进手环**需要完整的 MiWear 业务层（protobuf 消息集 + 安装编排 + 分片确认），
+AzkiDeck 用 2.2MB 的 `libazvfnative.so` 实现，AstroBox 用闭源 Rust core 实现。
+本仓库已完成传输与握手，缺的是业务消息层 —— 这一层必须对着真机逐条校准，
+所以不在没有设备的情况下假装实现。`install/Rpk.kt` 已把「装之前该检查什么」做完。
+
+### 设备码：全作品统一
+
+2026-10 起七个作品的设备码用同一个盐（`yj.dev|`）推导，同一只手环在任何作品里是**同一个码**。
+历史盐（`cz.dev|` / `sz.dev|` / `xh.dev|` / `lm.dev|`）挪到各作 `actkey.js` 的
+`LEGACY_DEV_SALT`，只用于把统一之前发出的许可证认回来：
+
+```
+手环取授权 → 报 { device: 新码, legacy: 旧码 }
+激活站     → 按「新码或旧码」查库（老行仍绑旧码）
+手环验签   → 载荷里的设备码等于新码或旧码都接受
+```
+
+许可证本身、每作的私钥、epoch、gameId 全部保持独立 —— 统一的只有设备码。
 
 ## 安全设计
 
