@@ -390,7 +390,7 @@ class BridgeEngine(
         // 3) v1 单消息 fetch
         engine.onFrame(
             addr, pkg,
-            "{\"tag\":\"fetch\",\"id\":\"t1\",\"url\":\"https://example.com/a\",\"options\":{\"method\":\"GET\"}}"
+            "{\"tag\":\"fetch\",\"id\":\"t1\",\"url\":\"https://selftest.local/json\",\"options\":{\"method\":\"GET\"}}"
         ) { out.add(it) }
         val r1 = out.lastOrNull()?.let { JSONObject(it) }?.optJSONObject("resp")
         step(
@@ -406,7 +406,7 @@ class BridgeEngine(
         ) { out.add(it) }
         engine.onFrame(
             addr, pkg,
-            "{\"tag\":\"fetch\",\"id\":\"t2\",\"url\":\"https://example.com/big\",\"options\":{}}"
+            "{\"tag\":\"fetch\",\"id\":\"t2\",\"url\":\"https://selftest.local/big\",\"options\":{}}"
         ) { out.add(it) }
         val header = out.mapNotNull { runCatching { JSONObject(it) }.getOrNull() }
             .firstOrNull { it.optString("tag") == "fetch" }?.optJSONObject("resp")
