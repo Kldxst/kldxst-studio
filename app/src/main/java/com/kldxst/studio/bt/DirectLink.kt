@@ -156,7 +156,7 @@ class DirectLink(
                 val n = try { input.read(buf) } catch (e: Exception) { -1 }
                 if (n <= 0) break
                 val frame = buf.copyOf(n)
-                log("← ${frame.size}B ${hex(frame.take(24))}")
+                log("← ${frame.size}B ${hex(frame.copyOfRange(0, minOf(24, frame.size)))}")
                 onFrame?.invoke(frame)
             }
             log("SPP 读取结束")
@@ -180,7 +180,7 @@ class DirectLink(
         val payload = cipher.doFinal(nonce)
         val frame = buildFrame(profile.authFrameType, payload)
         send(frame)
-        log("→ auth ${frame.size}B ${hex(frame.take(24))}")
+        log("→ auth ${frame.size}B ${hex(frame.copyOfRange(0, minOf(24, frame.size)))}")
         // 给对端 1.2s 回包窗口，拿到就记下来（内容解释留待真机校准）
         delay(1200)
         mapOf(

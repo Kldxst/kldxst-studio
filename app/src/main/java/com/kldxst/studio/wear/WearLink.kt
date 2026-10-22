@@ -91,7 +91,7 @@ class WearLink(private val ctx: Context) {
         val perms = arrayOf(Permission.DEVICE_MANAGER)
         val checked = awaitAny(authApi.checkPermissions(id, perms), "无法查询授权状态")
         if (truthy(checked)) return true
-        awaitAny(authApi.requestPermission(id, perms), "授权未通过，请在弹窗中允许")
+        awaitAny(authApi.requestPermission(id, *perms), "授权未通过，请在弹窗中允许")
         return true
     }
 

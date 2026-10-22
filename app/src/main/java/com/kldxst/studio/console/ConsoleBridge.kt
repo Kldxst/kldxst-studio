@@ -21,7 +21,6 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeUnit
 
 /**
  * 控制台 ⇄ 原生的唯一通道。
@@ -306,9 +305,9 @@ class ConsoleBridge(
             val info = Rpk.inspect(target)
             val json = info.toJson()
             json.put("path", target.absolutePath)
-            json.put("shaMatch", if (expect.isBlank()) JSONObject.NULL else sha == expect)
-            if (expect.isNotBlank() && sha != expect) {
-                json.put("error", "哈希不匹配：期望 ${expect.take(16)}…，实际 ${sha.take(16)}…")
+            json.put("shaMatch", if (expectSha.isBlank()) JSONObject.NULL else sha == expectSha)
+            if (expectSha.isNotBlank() && sha != expectSha) {
+                json.put("error", "哈希不匹配：期望 ${expectSha.take(16)}…，实际 ${sha.take(16)}…")
                 target.delete()
             }
             return json
