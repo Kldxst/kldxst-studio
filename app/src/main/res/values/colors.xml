@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与品牌规范 docs/BRAND-KLDXST.md 的墨径体系一致：底 #08080B、纸白 #EAE4D8、琥珀 #E8A33D -->
+    <color name="ink_bg">#08080B</color>
+    <color name="ink_panel">#121218</color>
+    <color name="ink_stroke">#2B2B36</color>
+    <color name="paper">#EAE4D8</color>
+    <color name="warm_gray">#948F86</color>
+    <color name="amber">#E8A33D</color>
+    <color name="moss">#7FA98A</color>
+</resources>

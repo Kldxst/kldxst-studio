@@ -1,0 +1,113 @@
+import java.io.FileInputStream
+import java.util.Properties
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+/*
+ * 签名：keystore.properties 不进 git（CI 里由 secrets 还原）。
+ * 没有它就用 debug 签名兜底 —— 但 debug 签名与正式包不同，
+ * 覆盖安装会失败，所以正式分发必须带 keystore。
+ */
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def hasKeystore = keystoreProperties.getProperty("storeFile") != null
+
+android {
+    namespace 'com.kldxst.studio'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.kldxst.studio"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+        resourceConfigurations += ["zh", "en"]
+        resValue "string", "app_name", "K社工坊"
+
+        /*
+         * 控制台地址：**唯一**会随 APK 固定的服务端常量。
+         * 之后所有界面、流程、作品清单、协议参数都由它下发，
+         * 所以改功能不需要重新打包 APK。
+         */
+        buildConfigField "String", "CONSOLE_URL", '"https://studio.kldxst.me/"'
+        buildConfigField "String", "CONSOLE_ORIGIN", '"https://studio.kldxst.me"'
+        buildConfigField "String", "ACTIVE_ORIGIN", '"https://active.kldxst.me"'
+        // 控制台白名单：只有这些 origin 能调用原生接口
+        buildConfigField "String", "CONSOLE_HOSTS", '"studio.kldxst.me,active.kldxst.me"'
+    }
+
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            if (hasKeystore) signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            minifyEnabled false
+            if (hasKeystore) signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    /*
+     * 小米穿戴 SDK（社区 clean-room 重写版）。它负责：
+     * 枚举已配对设备、查询/拉起快应用、收发消息、推送通知、订阅设备状态。
+     * 蓝牙连接由小米运动健康代管，本应用不直接碰 BLE —— 这是官方通道，
+     * 也是目前唯一不需要还原小米私有蓝牙协议栈的路径。
+     */
+    implementation files("libs/xms-wearable-lib_1.4_oronbox.1-release.aar")
+
+    implementation "androidx.core:core-ktx:1.12.0"
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "com.google.android.material:material:1.10.0"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.6.2"
+    implementation "androidx.lifecycle:lifecycle-service:2.6.2"
+    implementation "androidx.webkit:webkit:1.8.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+
+    testImplementation "junit:junit:4.13.2"
+    // 单测里 android 的 org.json 是空壳，换真实现才能跑协议用例
+    testImplementation "org.json:json:20231013"
+}

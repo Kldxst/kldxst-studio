@@ -1,0 +1,18 @@
+name = "kldxst-studio"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# 自定义域：Workers 会自动建 DNS 与证书
+# （本机 OAuth token 没有 DNS 写权限，所以不要走 Pages 自定义域那条路）
+# 注意：这一行必须写在 [assets] 之前，否则 TOML 会把它算进 assets 表。
+routes = [
+  { pattern = "studio.kldxst.me", custom_domain = true }
+]
+
+# 控制台页面是纯静态资源，改完 deploy 立即生效 —— 这是「APK 只打包一次」的落点
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[observability]
+enabled = true

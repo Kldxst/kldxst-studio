@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 只允许 TLS，且不接受用户安装的 CA（防止抓包改写控制台页面注入脚本）。
+     若需要企业代理调试，可临时把 certificates 指向 debug-overrides。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">kldxst.me</domain>
+        <domain includeSubdomains="true">bandbbs.cn</domain>
+    </domain-config>
+</network-security-config>

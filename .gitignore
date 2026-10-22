@@ -1,0 +1,20 @@
+# 构建产物
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
+
+# 签名：绝不进仓库（CI 从 secrets 还原）
+*.jks
+*.keystore
+keystore.properties
+
+# Worker
+node_modules/
+.wrangler/
+.dev.vars
+
+# 系统
+.DS_Store
+Thumbs.db

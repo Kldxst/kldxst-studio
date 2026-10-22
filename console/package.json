@@ -1,0 +1,13 @@
+{
+  "name": "kldxst-studio-console",
+  "version": "1.0.0",
+  "private": true,
+  "description": "K社工坊控制台（Cloudflare Worker）",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

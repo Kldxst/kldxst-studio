@@ -1,0 +1,4 @@
+# This is a binary file placeholder
+# In a real project, this would be the actual gradle-wrapper.jar binary
+# For GitHub Actions, this will be downloaded automatically by Gradle
+# You can download the actual jar from: https://github.com/gradle/gradle/blob/master/gradle/wrapper/gradle-wrapper.jar

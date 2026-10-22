@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#08080B">
+<title>K社工坊</title>
+<style>
+  :root{
+    --bg:#08080B; --panel:#121218; --panel2:#17171F; --stroke:#2B2B36;
+    --paper:#EAE4D8; --gray:#948F86; --amber:#E8A33D; --moss:#7FA98A; --blood:#A63C2E;
+    --r:16px; --safe: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--paper);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    padding-bottom:calc(74px + var(--safe));
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    position:sticky; top:0; z-index:20; backdrop-filter:blur(14px);
+    background:rgba(8,8,11,.82); border-bottom:1px solid var(--stroke);
+    padding:14px 18px 12px; display:flex; align-items:center; gap:10px;
+  }
+  .brand{font-size:17px; font-weight:700; letter-spacing:.02em}
+  .brand i{color:var(--amber); font-style:normal}
+  .pill{
+    margin-left:auto; font-size:12px; padding:5px 10px; border-radius:999px;
+    border:1px solid var(--stroke); color:var(--gray); white-space:nowrap;
+  }
+  .pill.on{color:var(--moss); border-color:rgba(127,169,138,.45); background:rgba(127,169,138,.10)}
+  .pill.warn{color:var(--amber); border-color:rgba(232,163,61,.45); background:rgba(232,163,61,.10)}
+  main{padding:16px 16px 8px; max-width:680px; margin:0 auto}
+  .view{display:none; animation:fade .18s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)}to{opacity:1;transform:none}}
+  .card{
+    background:var(--panel); border:1px solid var(--stroke); border-radius:var(--r);
+    padding:16px; margin-bottom:12px;
+  }
+  .card h2{margin:0 0 4px; font-size:15px; font-weight:650}
+  .card p.hint{margin:0 0 12px; font-size:12.5px; color:var(--gray); line-height:1.5}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  .row.tight{gap:8px}
+  .grow{flex:1 1 auto}
+  .kv{display:flex; justify-content:space-between; gap:12px; padding:7px 0; font-size:13.5px; border-bottom:1px dashed rgba(43,43,54,.7)}
+  .kv:last-child{border-bottom:0}
+  .kv span{color:var(--gray)}
+  .kv b{font-weight:600; max-width:62%; text-align:right; word-break:break-all}
+  button{
+    font:inherit; color:var(--paper); background:var(--panel2); border:1px solid var(--stroke);
+    border-radius:12px; padding:11px 14px; cursor:pointer; transition:.15s;
+  }
+  button:active{transform:scale(.985); background:#1F1F29}
+  button.primary{background:var(--amber); border-color:var(--amber); color:#0B0B0E; font-weight:650}
+  button.ghost{background:transparent}
+  button.danger{color:#E4A79C; border-color:rgba(166,60,46,.5)}
+  button[disabled]{opacity:.45; pointer-events:none}
+  button.block{width:100%}
+  input,textarea,select{
+    font:inherit; width:100%; color:var(--paper); background:#0E0E13;
+    border:1px solid var(--stroke); border-radius:11px; padding:10px 12px; outline:none;
+  }
+  input:focus,textarea:focus{border-color:rgba(232,163,61,.55)}
+  label.field{display:block; margin-bottom:10px}
+  label.field > span{display:block; font-size:12px; color:var(--gray); margin-bottom:6px}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .log{
+    font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:#0B0B10; border:1px solid var(--stroke); border-radius:12px;
+    padding:12px; max-height:230px; overflow:auto; color:#B9B3A7; white-space:pre-wrap;
+  }
+  .tag{font-size:11px; padding:2px 7px; border-radius:6px; background:rgba(148,143,134,.16); color:var(--gray)}
+  .tag.ok{background:rgba(127,169,138,.16); color:var(--moss)}
+  .tag.no{background:rgba(166,60,46,.18); color:#E4A79C}
+  .tag.wait{background:rgba(232,163,61,.16); color:var(--amber)}
+  .game{display:flex; gap:12px; align-items:flex-start}
+  .game .badge{
+    width:42px; height:42px; flex:0 0 42px; border-radius:12px; display:grid; place-items:center;
+    background:linear-gradient(150deg,#1D1D26,#121218); border:1px solid var(--stroke);
+    font-weight:700; color:var(--amber); font-size:15px;
+  }
+  .game .meta{flex:1 1 auto; min-width:0}
+  .game .meta b{display:block; font-size:14.5px}
+  .game .meta small{color:var(--gray); font-size:12px; display:block; margin-top:2px}
+  .game .acts{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+  .game .acts button{padding:8px 11px; font-size:13px; border-radius:10px}
+  nav{
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    display:grid; grid-template-columns:repeat(4,1fr);
+    background:rgba(10,10,14,.94); border-top:1px solid var(--stroke);
+    padding:8px 6px calc(8px + var(--safe)); backdrop-filter:blur(14px);
+  }
+  nav button{
+    background:none; border:0; padding:6px 2px; display:grid; gap:3px; justify-items:center;
+    color:var(--gray); font-size:11px; border-radius:12px;
+  }
+  nav button.on{color:var(--amber)}
+  nav svg{width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round}
+  .toast{
+    position:fixed; left:50%; bottom:calc(92px + var(--safe)); transform:translateX(-50%) translateY(12px);
+    background:#1D1D26; border:1px solid var(--stroke); color:var(--paper);
+    padding:11px 16px; border-radius:12px; font-size:13.5px; opacity:0; pointer-events:none;
+    transition:.2s; z-index:60; max-width:86vw; text-align:center;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%)}
+  .banner{
+    border:1px solid rgba(232,163,61,.35); background:rgba(232,163,61,.08);
+    color:#F0C98A; border-radius:12px; padding:11px 13px; font-size:12.5px; margin-bottom:12px;
+  }
+  .empty{color:var(--gray); font-size:13px; text-align:center; padding:18px 0}
+  .sep{height:1px; background:var(--stroke); margin:14px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">K<i>社</i>工坊</div>
+  <div class="pill" id="connPill">未连接</div>
+</header>
+
+<main>
+  <!-- ───────── 设备 ───────── -->
+  <section class="view active" id="view-device">
+    <div class="card">
+      <h2>连接</h2>
+      <p class="hint">手环的连接由「小米运动健康」代管，本应用不直接占用蓝牙。先在小米运动健康里连上手环，再回到这里点连接。</p>
+      <div id="hostList"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="primary grow" id="btnConnect">连接手环</button>
+        <button class="ghost" id="btnPerm">授权</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>设备状态</h2>
+      <div id="devState"><div class="empty">尚未连接</div></div>
+      <div class="row" style="margin-top:12px">
+        <button class="ghost grow" id="btnInstalled">检查快应用</button>
+        <button class="ghost grow" id="btnLaunch">启动快应用</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>通知推送</h2>
+      <p class="hint">把手机上的消息推到手环。这条通道不受快应用包名限制，任何作品都能用。</p>
+      <label class="field"><span>标题</span><input id="ntTitle" placeholder="K社工坊" maxlength="80"></label>
+      <label class="field"><span>内容</span><textarea id="ntBody" rows="2" maxlength="400" placeholder="今天的手环状态不错"></textarea></label>
+      <button class="block" id="btnNotify">发送到手表</button>
+    </div>
+  </section>
+
+  <!-- ───────── 作品 ───────── -->
+  <section class="view" id="view-games">
+    <div class="banner" id="gamesNotice" hidden></div>
+    <div id="gameList"><div class="empty">正在拉取作品清单…</div></div>
+  </section>
+
+  <!-- ───────── 网桥 ───────── -->
+  <section class="view" id="view-bridge">
+    <div class="card">
+      <h2>网桥</h2>
+      <p class="hint">
+        快应用要联网（激活、云存档、排行榜）时，由本应用代它发 HTTP。
+        打开开关后即使锁屏也会保持。
+      </p>
+      <div class="kv"><span>状态</span><b id="brState">已停止</b></div>
+      <div class="kv"><span>会话</span><b id="brSessions">0</b></div>
+      <div class="kv"><span>请求 / 流量</span><b id="brCounters">0 / 0 B</b></div>
+      <div class="row" style="margin-top:12px">
+        <button class="primary grow" id="btnBridgeOn">启动网桥</button>
+        <button class="ghost" id="btnBridgeOff">停止</button>
+      </div>
+      <div class="row tight" style="margin-top:10px">
+        <button class="ghost grow" id="btnSelftest">协议自检</button>
+        <button class="ghost grow" id="btnLogs">刷新日志</button>
+      </div>
+      <div id="selftestOut" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2>出口策略</h2>
+      <p class="hint">白名单留空表示不限制域名（仍会拦截内网地址）。改完立即生效，并写进本机加密存储。</p>
+      <label class="field"><span>允许的包名（逗号分隔，留空=不限）</span><input id="polPkg" placeholder="com.kldxst.youjing,com.kldxst.afterdoom"></label>
+      <label class="field"><span>域名白名单</span><input id="polAllow" placeholder="kldxst.me,bandbbs.cn"></label>
+      <label class="field"><span>域名黑名单</span><input id="polBlock" placeholder="留空即可"></label>
+      <div class="grid2">
+        <label class="field"><span>响应上限 (MB)</span><input id="polMax" type="number" min="1" max="32" step="1"></label>
+        <label class="field"><span>超时 (ms)</span><input id="polTimeout" type="number" min="2000" max="60000" step="1000"></label>
+        <label class="field"><span>单分片 (字节)</span><input id="polChunk" type="number" min="256" max="65536" step="256"></label>
+        <label class="field"><span>在途窗口</span><input id="polWindow" type="number" min="1" max="64" step="1"></label>
+      </div>
+      <label class="field"><span>每分钟请求上限</span><input id="polRate" type="number" min="10" max="6000" step="10"></label>
+      <button class="block primary" id="btnPolicy">保存策略</button>
+    </div>
+
+    <div class="card">
+      <h2>运行日志</h2>
+      <div class="log" id="logBox">（空）</div>
+    </div>
+  </section>
+
+  <!-- ───────── 设置 ───────── -->
+  <section class="view" id="view-settings">
+    <div class="card">
+      <h2>激活状态</h2>
+      <p class="hint">输入手环「关于」页显示的 8 位设备码，查询这台设备已获得的授权。许可证本身由手环自己联网取回，不需要在这里传输。</p>
+      <label class="field"><span>设备码</span><input id="deviceCode" placeholder="例如 K7M2QP4X" maxlength="8" autocapitalize="characters"></label>
+      <button class="block" id="btnQuery">查询授权</button>
+      <div id="licOut" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2>authkey</h2>
+      <p class="hint">保存在系统 Keystore 加密的本地存储里，不上传。留空保存即删除。</p>
+      <label class="field"><span>authkey（32 位十六进制）</span><input id="authkey" placeholder="不填则清除" maxlength="64"></label>
+      <div class="row"><button class="grow" id="btnAkSave">保存</button><button class="ghost" id="btnAkLoad">读取</button></div>
+    </div>
+
+    <div class="card">
+      <h2>关于</h2>
+      <div class="kv"><span>控制台版本</span><b id="aboutVersion">—</b></div>
+      <div class="kv"><span>应用版本</span><b id="aboutApp">—</b></div>
+      <div class="kv"><span>会话令牌</span><b id="aboutToken">—</b></div>
+      <div class="sep"></div>
+      <p class="hint" style="margin:0">
+        界面与流程全部来自服务端，所以后续更新只需要刷新这一页，不必重装应用。
+        原生侧只保留三件不会变的能力：设备通道、网桥引擎、本地加密存储。
+      </p>
+      <div class="row" style="margin-top:12px">
+        <button class="grow" id="btnReload">重新加载控制台</button>
+        <button class="ghost" id="btnDiag">导出诊断</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="device" class="on">
+    <svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg>
+    设备
+  </button>
+  <button data-tab="games">
+    <svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 10h3M8 14h6M15 10h1"/></svg>
+    作品
+  </button>
+  <button data-tab="bridge">
+    <svg viewBox="0 0 24 24"><path d="M3 12h5l2-4 3 8 2-4h6"/></svg>
+    网桥
+  </button>
+  <button data-tab="settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg>
+    设置
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─────────── 原生通道 ─────────── */
+  var NATIVE = typeof window.Kldxst !== 'undefined';
+  var TOKEN = window.__kldxstToken || '';
+  var seq = 0;
+  var pending = {};
+
+  window.KldxstOnResult = function (id, json) {
+    var cb = pending[id];
+    if (!cb) return;
+    delete pending[id];
+    var payload;
+    try { payload = JSON.parse(json); } catch (e) { payload = { ok: false, message: '回包解析失败' }; }
+    cb(payload);
+  };
+
+  function call(method, args) {
+    if (!NATIVE) return Promise.resolve(mock(method, args));
+    return new Promise(function (resolve) {
+      var id = 'r' + (++seq);
+      pending[id] = resolve;
+      var payload = Object.assign({}, args || {}, { t: TOKEN });
+      try {
+        window.Kldxst.call(id, method, JSON.stringify(payload));
+      } catch (e) {
+        delete pending[id];
+        resolve({ ok: false, error: 'E_CALL', message: String(e) });
+      }
+      setTimeout(function () {
+        if (pending[id]) { delete pending[id]; resolve({ ok: false, error: 'E_TIMEOUT', message: '原生接口超时' }); }
+      }, 40000);
+    });
+  }
+
+  /* 浏览器里直接打开时用的假数据，方便改页面时不用装 APK */
+  function mock(method) {
+    var m = {
+      hello: { ok: true, data: { app: { versionName: 'preview', versionCode: 0, applicationId: 'com.kldxst.studio' }, caps: { wear: true, bridge: true }, hosts: { 'com.mi.health': false }, bridgeRunning: false, policy: {} } },
+      'wear.status': { ok: true, data: { connected: false, device: null, hosts: { 'com.mi.health': false }, state: null } },
+      'bridge.status': { ok: true, data: { running: false, sessions: [], requests: 0, bytes: 0, policy: {} } },
+      'bridge.logs': { ok: true, data: { lines: ['预览模式：没有原生通道'] } },
+      'bridge.selftest': { ok: true, data: { ok: true, pass: 4, fail: 0, steps: [{ name: '预览', ok: true, detail: 'mock' }] } }
+    };
+    return m[method] || { ok: false, error: 'E_PREVIEW', message: '预览模式不支持 ' + method };
+  }
+
+  /* ─────────── 小工具 ─────────── */
+  var $ = function (id) { return document.getElementById(id); };
+  var toastTimer = null;
+  function toast(text) {
+    var t = $('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function bytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+  function tag(ok, text) {
+    return '<span class="tag ' + (ok ? 'ok' : 'no') + '">' + esc(text) + '</span>';
+  }
+
+  /* ─────────── 标签页 ─────────── */
+  var tabs = document.querySelectorAll('nav button');
+  Array.prototype.forEach.call(tabs, function (b) {
+    b.addEventListener('click', function () {
+      Array.prototype.forEach.call(tabs, function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      Array.prototype.forEach.call(document.querySelectorAll('.view'), function (v) { v.classList.remove('active'); });
+      $('view-' + b.dataset.tab).classList.add('active');
+      if (b.dataset.tab === 'bridge') refreshBridge();
+      if (b.dataset.tab === 'games' && !gamesLoaded) loadGames();
+    });
+  });
+
+  /* ─────────── 设备 ─────────── */
+  function renderHosts(hosts) {
+    var names = { 'com.mi.health': '小米运动健康（国内）', 'com.xiaomi.wearable': '小米穿戴（国际）', 'org.zxor.oronbox': 'OronBox' };
+    var html = '';
+    Object.keys(hosts || {}).forEach(function (k) {
+      html += '<div class="kv"><span>' + esc(names[k] || k) + '</span><b>' + (hosts[k] ? '已安装' : '未安装') + '</b></div>';
+    });
+    $('hostList').innerHTML = html || '<div class="empty">未检测到宿主应用</div>';
+  }
+
+  function renderState(d) {
+    var s = d.state || {};
+    var dev = d.device;
+    if (!dev) { $('devState').innerHTML = '<div class="empty">尚未连接</div>'; return; }
+    var html = '';
+    html += '<div class="kv"><span>设备</span><b>' + esc(dev.name || dev.id) + '</b></div>';
+    if (s.battery != null) html += '<div class="kv"><span>电量</span><b>' + esc(s.battery) + '%</b></div>';
+    if (s.charging != null) html += '<div class="kv"><span>充电</span><b>' + (s.charging ? '是' : '否') + '</b></div>';
+    if (s.wearing != null) html += '<div class="kv"><span>佩戴</span><b>' + (s.wearing ? '是' : '否') + '</b></div>';
+    if (s.sleeping != null) html += '<div class="kv"><span>睡眠</span><b>' + (s.sleeping ? '是' : '否') + '</b></div>';
+    $('devState').innerHTML = html;
+  }
+
+  function setConn(text, cls) {
+    var p = $('connPill');
+    p.textContent = text;
+    p.className = 'pill' + (cls ? ' ' + cls : '');
+  }
+
+  async function refreshWear() {
+    var r = await call('wear.status');
+    if (!r.ok) { setConn('未就绪', 'warn'); return; }
+    renderHosts(r.data.hosts);
+    renderState(r.data);
+    setConn(r.data.connected ? '已连接' : '未连接', r.data.connected ? 'on' : '');
+  }
+
+  $('btnConnect').onclick = async function () {
+    var btn = this; btn.disabled = true; btn.textContent = '连接中…';
+    var r = await call('wear.connect');
+    btn.disabled = false; btn.textContent = '连接手环';
+    if (!r.ok) { toast(r.message || '连接失败'); return; }
+    toast('已连接 ' + (r.data.device.name || '手环'));
+    refreshWear();
+  };
+
+  $('btnPerm').onclick = async function () {
+    var r = await call('wear.permission');
+    toast(r.ok ? '已获得设备管理授权' : (r.message || '授权失败'));
+  };
+
+  $('btnInstalled').onclick = async function () {
+    var r = await call('wear.appInstalled');
+    toast(r.ok ? (r.data.installed ? '手环上已安装同名快应用' : '手环上没有同名快应用') : (r.message || '查询失败'));
+  };
+
+  $('btnLaunch').onclick = async function () {
+    var path = prompt('快应用入口路径', '/pages/index');
+    if (!path) return;
+    var r = await call('wear.launch', { path: path });
+    toast(r.ok ? '已请求在手环上打开' : (r.message || '打开失败'));
+  };
+
+  $('btnNotify').onclick = async function () {
+    var title = $('ntTitle').value.trim() || 'K社工坊';
+    var body = $('ntBody').value.trim();
+    if (!body) { toast('先写点内容'); return; }
+    var r = await call('wear.notify', { title: title, message: body });
+    toast(r.ok ? '已发送' : (r.message || '发送失败'));
+  };
+
+  /* ─────────── 作品 ─────────── */
+  var gamesLoaded = false;
+  var gamesData = [];
+
+  async function loadGames() {
+    gamesLoaded = true;
+    var list = $('gameList');
+    try {
+      var resp = await fetch('/api/games', { headers: { 'accept': 'application/json' } });
+      var j = await resp.json();
+      gamesData = (j && j.games) || [];
+    } catch (e) {
+      gamesData = [];
+    }
+    if (!gamesData.length) {
+      list.innerHTML = '<div class="empty">清单拉取失败，请检查网络后重试</div>';
+      return;
+    }
+    list.innerHTML = gamesData.map(function (g, i) {
+      var initial = (g.name || '?').slice(0, 1);
+      return '<div class="card"><div class="game">' +
+        '<div class="badge">' + esc(initial) + '</div>' +
+        '<div class="meta"><b>' + esc(g.name) + '</b>' +
+        '<small>' + esc(g.tagline || '') + '</small>' +
+        '<small>' + esc(g.device || '') + ' · ' + esc(g.pkg || '') + '</small></div></div>' +
+        '<div class="acts">' +
+        '<button data-act="launch" data-i="' + i + '">启动</button>' +
+        '<button data-act="verify" data-i="' + i + '">校验安装包</button>' +
+        (g.buy ? '<button data-act="buy" data-i="' + i + '">购买</button>' : '') +
+        '<button data-act="detail" data-i="' + i + '">详情</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  $('gameList').addEventListener('click', async function (ev) {
+    var b = ev.target.closest('button[data-act]');
+    if (!b) return;
+    var g = gamesData[Number(b.dataset.i)];
+    if (!g) return;
+    if (b.dataset.act === 'launch') {
+      var r = await call('wear.launch', { path: g.launch || '/pages/index' });
+      toast(r.ok ? '已请求在手环上打开' : (r.message || '打开失败'));
+    } else if (b.dataset.act === 'buy') {
+      window.open(g.buy, '_blank');
+    } else if (b.dataset.act === 'detail') {
+      toast((g.name || '') + ' · ' + (g.pkg || '') + ' · ' + (g.device || ''));
+    } else if (b.dataset.act === 'verify') {
+      if (!g.rpk) { toast('这个作品还没有公开下载地址'); return; }
+      b.disabled = true; b.textContent = '校验中…';
+      var res = await call('rpk.inspectUrl', { url: g.rpk });
+      b.disabled = false; b.textContent = '校验安装包';
+      if (!res.ok) { toast(res.message || '校验失败'); return; }
+      var d = res.data;
+      toast(d.error ? d.error : ('合法安装包：' + d.package + ' v' + d.versionName + ' · ' + bytes(d.size)));
+    }
+  });
+
+  /* ─────────── 网桥 ─────────── */
+  async function refreshBridge() {
+    var r = await call('bridge.status');
+    if (!r.ok) return;
+    var d = r.data;
+    $('brState').textContent = d.running ? '运行中' : '已停止';
+    $('brSessions').textContent = (d.sessions || []).length + ' 个会话';
+    $('brCounters').textContent = (d.requests || 0) + ' 次 / ' + bytes(d.bytes);
+    if (d.policy) fillPolicy(d.policy);
+    var pill = $('connPill');
+    if (d.running && pill.textContent === '未连接') setConn('网桥就绪', 'on');
+  }
+
+  function fillPolicy(p) {
+    if (p.allowPackages && p.allowPackages.length) $('polPkg').value = p.allowPackages.join(',');
+    if (p.allowHosts && p.allowHosts.length) $('polAllow').value = p.allowHosts.join(',');
+    if (p.blockHosts && p.blockHosts.length) $('polBlock').value = p.blockHosts.join(',');
+    $('polMax').value = Math.round((p.maxResponseBytes || 8388608) / 1048576);
+    $('polTimeout').value = p.timeoutMs || 20000;
+    $('polChunk').value = p.chunkSize || 4096;
+    $('polWindow').value = p.ackWindow || 4;
+    $('polRate').value = p.maxRequestsPerMinute || 240;
+  }
+
+  $('btnBridgeOn').onclick = async function () {
+    var r = await call('bridge.start', { autoStart: true });
+    toast(r.ok ? '网桥已启动' : (r.message || '启动失败'));
+    setTimeout(refreshBridge, 600);
+  };
+  $('btnBridgeOff').onclick = async function () {
+    await call('bridge.stop');
+    toast('已停止');
+    setTimeout(refreshBridge, 400);
+  };
+
+  $('btnLogs').onclick = async function () {
+    var r = await call('bridge.logs', { limit: 120 });
+    $('logBox').textContent = r.ok ? ((r.data.lines || []).join('\n') || '（空）') : (r.message || '读取失败');
+  };
+
+  $('btnSelftest').onclick = async function () {
+    var out = $('selftestOut');
+    out.innerHTML = '<div class="empty">正在跑四条主路径…</div>';
+    var r = await call('bridge.selftest');
+    if (!r.ok) { out.innerHTML = '<div class="empty">' + esc(r.message || '自检失败') + '</div>'; return; }
+    var d = r.data;
+    out.innerHTML = '<div class="kv"><span>结果</span><b>' + (d.ok ? '全部通过' : (d.fail + ' 项失败')) + '</b></div>' +
+      (d.steps || []).map(function (s) {
+        return '<div class="kv"><span>' + esc(s.name) + '</span><b>' + tag(s.ok, s.ok ? '通过' : '失败') + '</b></div>';
+      }).join('');
+  };
+
+  $('btnPolicy').onclick = async function () {
+    function list(id) {
+      return $(id).value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    var policy = {
+      allowPackages: list('polPkg').length ? list('polPkg') : null,
+      allowHosts: list('polAllow'),
+      blockHosts: list('polBlock'),
+      allowHttp: false,
+      maxResponseBytes: (Number($('polMax').value) || 8) * 1048576,
+      timeoutMs: Number($('polTimeout').value) || 20000,
+      chunkSize: Number($('polChunk').value) || 4096,
+      ackWindow: Number($('polWindow').value) || 4,
+      maxRequestsPerMinute: Number($('polRate').value) || 240
+    };
+    var r = await call('bridge.policy', { policy: policy });
+    toast(r.ok ? '策略已保存并生效' : (r.message || '保存失败'));
+  };
+
+  /* ─────────── 设置 ─────────── */
+  $('btnQuery').onclick = async function () {
+    var code = ($('deviceCode').value || '').trim().toUpperCase().replace(/[\s-]/g, '');
+    if (!/^[23456789ABCDEFGHJKMNPQRSTVWXYZ]{8}$/.test(code)) { toast('设备码应为 8 位（不含 0 1 I L O U）'); return; }
+    var out = $('licOut');
+    out.innerHTML = '<div class="empty">查询中…</div>';
+    try {
+      var resp = await fetch('/api/license-status', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ device: code, games: gamesData.length ? gamesData.map(function (g) { return g.id; }) : null })
+      });
+      var j = await resp.json();
+      if (!j.ok) { out.innerHTML = '<div class="empty">' + esc(j.message || '查询失败') + '</div>'; return; }
+      out.innerHTML = (j.results || []).map(function (x) {
+        return '<div class="kv"><span>' + esc(x.name) + '</span><b>' + (x.licensed ? tag(true, '已授权') : tag(false, '未授权')) + '</b></div>';
+      }).join('') || '<div class="empty">没有可查询的作品</div>';
+    } catch (e) {
+      out.innerHTML = '<div class="empty">网络错误</div>';
+    }
+  };
+
+  $('btnAkSave').onclick = async function () {
+    var v = ($('authkey').value || '').trim();
+    if (v && !/^[0-9a-fA-F]{32}$/.test(v)) { toast('authkey 应为 32 位十六进制'); return; }
+    var r = v ? await call('secure.set', { key: 'authkey', value: v }) : await call('secure.del', { key: 'authkey' });
+    toast(r.ok ? (v ? '已加密保存' : '已清除') : (r.message || '操作失败'));
+  };
+
+  $('btnAkLoad').onclick = async function () {
+    var r = await call('secure.get', { key: 'authkey' });
+    if (!r.ok) { toast(r.message || '读取失败'); return; }
+    $('authkey').value = r.data.value || '';
+    toast(r.data.value ? '已读取' : '没有保存过');
+  };
+
+  $('btnReload').onclick = function () { location.reload(); };
+
+  $('btnDiag').onclick = async function () {
+    var hello = await call('hello');
+    var status = await call('wear.status');
+    var bridge = await call('bridge.status');
+    var logs = await call('bridge.logs', { limit: 60 });
+    var report = {
+      at: new Date().toISOString(),
+      ua: navigator.userAgent,
+      url: location.href,
+      hello: hello, wear: status, bridge: bridge, logs: logs
+    };
+    var text = JSON.stringify(report, null, 2);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(function () { toast('诊断已复制'); }, function () { toast('复制失败'); });
+    } else {
+      $('logBox').textContent = text;
+      toast('已输出到网桥页日志区');
+    }
+  };
+
+  /* ─────────── 启动 ─────────── */
+  (async function boot() {
+    var cfg = null;
+    try {
+      var resp = await fetch('/api/config', { headers: { 'accept': 'application/json' } });
+      cfg = await resp.json();
+    } catch (e) { /* 离线也能用 */ }
+    if (cfg && cfg.ok) {
+      $('aboutVersion').textContent = cfg.config.version || '—';
+      if (cfg.config.notice) {
+        var n = $('gamesNotice');
+        n.hidden = false; n.textContent = cfg.config.notice;
+      }
+      if (cfg.config.bridge && NATIVE) fillPolicy(cfg.config.bridge);
+    }
+    var hello = await call('hello');
+    if (hello.ok) {
+      $('aboutApp').textContent = hello.data.app.versionName + ' (' + hello.data.app.versionCode + ')';
+      $('aboutToken').textContent = TOKEN ? '已注入' : '未注入（只读模式）';
+      renderHosts(hello.data.hosts);
+      setConn(hello.data.bridgeRunning ? '网桥就绪' : '未连接', hello.data.bridgeRunning ? 'on' : '');
+    } else {
+      $('aboutApp').textContent = NATIVE ? '读取失败' : '浏览器预览';
+      $('aboutToken').textContent = NATIVE ? '无' : '无';
+    }
+    if (!NATIVE) {
+      var b = document.createElement('div');
+      b.className = 'banner';
+      b.textContent = '当前是浏览器预览模式：原生能力不可用，界面与数据可用于检查排版。';
+      document.querySelector('main').prepend(b);
+    }
+    refreshWear();
+    if (location.hash === '#bridge') { document.querySelector('nav button[data-tab="bridge"]').click(); }
+  })();
+})();
+</script>
+</body>
+</html>
