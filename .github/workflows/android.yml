@@ -24,8 +24,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # 模板里的 gradle-wrapper.jar 是个占位文本文件（不是真 jar），
+      # 所以不跑 ./gradlew，直接用 action 装好的 gradle。
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.0'
 
       - name: Restore signing material
         env:
@@ -44,14 +48,10 @@ jobs:
           fi
 
       - name: Unit tests (bridge protocol)
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon testDebugUnitTest
+        run: gradle --no-daemon testDebugUnitTest
 
       - name: Assemble release
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease
+        run: gradle --no-daemon assembleRelease
 
       - name: Collect artifacts
         run: |
