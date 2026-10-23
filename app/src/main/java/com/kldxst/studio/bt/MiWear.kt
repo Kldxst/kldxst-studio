@@ -382,20 +382,22 @@ class MiWear(
     suspend fun auth(authkeyHex: String): JSONObject = withContext(Dispatchers.IO) {
         val key = FrameCodec.unhex(authkeyHex)
         require(key != null && key.size == 16) { "authkey 应为 32 位十六进制" }
+        // 与 AstroBox 的 miwear-auth 一致：HMAC-SHA256(authkey, 手机 nonce)
         val nonce = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
-        val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
-        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"))
-        val payload = cipher.doFinal(nonce)
+        val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+        mac.init(javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"))
+        val hmac = mac.doFinal(nonce)
+        val payload = nonce + hmac
         authenticated = false
         lastAuthReply = null
         val reply = request(profile.authType, payload, profile.authType, 3000)
         JSONObject()
             .put("sent", true)
             .put("nonce", FrameCodec.hex(nonce))
-            .put("frame", FrameCodec.hex(FrameCodec.encode(profile, profile.authType, payload)))
+            .put("hmac", FrameCodec.hex(hmac))
             .put("reply", lastAuthReply ?: JSONObject.NULL)
             .put("replied", reply != null)
-            .put("note", if (reply == null) "已发出，未收到回包（检查 auth 帧类型与加密方式）" else "已收到回包")
+            .put("note", if (reply == null) "已发出，未收到回包" else "已收到回包")
     }
 
     /* ------------------------------------------------------------------ */

@@ -92,6 +92,18 @@
 <main>
   <section class="view active" id="view-device">
     <div class="card">
+      <h2>小米账号<em>登录后自动取 authkey</em></h2>
+      <p class="hint">登录小米账号，从云端取回设备与 authkey。凭据只存本机。</p>
+      <div id="accLogin">
+        <label class="field"><span>账号</span><input id="accUser" placeholder="手机号 / 邮箱 / ID" autocapitalize="off" spellcheck="false"></label>
+        <label class="field"><span>密码</span><input id="accPass" type="password" placeholder="小米账号密码"></label>
+        <button class="block primary" id="btnAccLogin">登录</button>
+      </div>
+      <div id="accInfo" style="margin-top:10px"></div>
+      <div id="accDevices" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
       <h2>连接<em>直连，不经过小米运动健康</em></h2>
       <p class="hint">开始前请强制停止小米运动健康，否则蓝牙被占用，连接会失败。</p>
       <div class="seg" id="transportSeg">
@@ -144,12 +156,12 @@
   <section class="view" id="view-bridge">
     <div class="card">
       <h2>网桥</h2>
-      <p class="hint">快应用联网时由本应用代发请求，锁屏后仍保持。</p>
+      <p class="hint">随应用启动，无需手动开。快应用联网时由本应用代发请求，锁屏后仍保持。</p>
       <div class="kv"><span>状态</span><b id="brState">已停止</b></div>
       <div class="kv"><span>会话</span><b id="brSessions">0</b></div>
       <div class="kv"><span>请求 / 流量</span><b id="brCounters">0 / 0 B</b></div>
       <div class="row" style="margin-top:12px">
-        <button class="primary grow" id="btnBridgeOn">启动网桥</button>
+        <button class="primary grow" id="btnBridgeOn">重启网桥</button>
         <button class="ghost" id="btnBridgeOff">停止</button>
       </div>
       <div class="row" style="margin-top:10px">
@@ -289,6 +301,52 @@
   function tag(ok, t) { return '<span class="tag ' + (ok ? 'ok' : 'no') + '">' + esc(t) + '</span>'; }
   function kv(k, v) { return '<div class="kv"><span>' + esc(k) + '</span><b>' + v + '</b></div>'; }
 
+  /* 小米账号 */
+  async function refreshAccount() {
+    var r = await call('account.status');
+    if (!r.ok) return;
+    var d = r.data;
+    $('accLogin').style.display = d.loggedIn ? 'none' : 'block';
+    $('accInfo').innerHTML = d.loggedIn
+      ? kv('账号', 'ID ' + esc(d.userId || '—')) + kv('authkey', d.hasAuthkey ? tag(true, '已取到') : tag(false, '未取到'))
+      : '<div class="empty">未登录</div>';
+    if (d.loggedIn) loadDevices();
+  }
+
+  async function loadDevices() {
+    var r = await call('account.devices');
+    if (!r.ok) { $('accDevices').innerHTML = '<div class="empty">' + esc(r.message || '取设备失败') + '</div>'; return; }
+    var list = r.data.devices || [];
+    $('accDevices').innerHTML = list.length ? list.map(function (d) {
+      return '<div class="kv"><span>' + esc(d.name || d.did) + '</span><b>' +
+        (d.hasAuthkey ? '<span class="tag ok">有 authkey</span>' : '<span class="tag no">无 authkey</span>') +
+        ' <button class="mini" data-did="' + esc(d.did) + '">使用</button></b></div>';
+    }).join('') : '<div class="empty">云端没有设备</div>';
+  }
+
+  $('accDevices').addEventListener('click', async function (ev) {
+    var b = ev.target.closest('button[data-did]'); if (!b) return;
+    b.disabled = true; b.textContent = '写入中';
+    var r = await call('account.use', { did: b.dataset.did });
+    b.disabled = false; b.textContent = '使用';
+    if (!r.ok) { toast(r.message || '失败'); return; }
+    toast('已写入本机');
+    refreshState();
+  });
+
+  $('btnAccLogin').onclick = async function () {
+    var user = ($('accUser').value || '').trim();
+    var pass = $('accPass').value || '';
+    if (!user || !pass) { toast('账号和密码都要填'); return; }
+    var b = this; b.disabled = true; b.textContent = '登录中…';
+    var r = await call('account.login', { user: user, password: pass });
+    b.disabled = false; b.textContent = '登录';
+    if (!r.ok) { toast(r.message || '登录失败'); return; }
+    $('accPass').value = '';
+    toast('登录成功');
+    refreshAccount();
+  };
+
   var tabs = document.querySelectorAll('nav button');
   Array.prototype.forEach.call(tabs, function (b) {
     b.addEventListener('click', function () {
@@ -384,7 +442,7 @@
     var r = await call('device.auth', { authkey: key });
     if (!r.ok) { toast(r.message || '握手失败'); return; }
     toast(r.data.replied ? '收到回包' : '已发出，未收到回包');
-    refreshState(); refreshFrames();
+    refreshAccount(); refreshState(); refreshFrames();
   };
 
   $('btnSaveKey').onclick = async function () {

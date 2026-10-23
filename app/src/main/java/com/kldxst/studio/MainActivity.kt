@@ -71,6 +71,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(web)
 
         askNotificationPermission()
+        // 网桥随应用启动，不再让用户手动开
+        com.kldxst.studio.service.StudioService.start(this)
         web.loadUrl(BuildConfig.CONSOLE_URL)
         Hub.log.add("控制台加载 ${BuildConfig.CONSOLE_URL}")
     }

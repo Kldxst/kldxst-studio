@@ -3,6 +3,7 @@ package com.kldxst.studio.console
 import android.content.Context
 import android.webkit.JavascriptInterface
 import com.kldxst.studio.BuildConfig
+import com.kldxst.studio.account.MiAccount
 import com.kldxst.studio.bridge.BridgePolicy
 import com.kldxst.studio.bt.FrameCodec
 import com.kldxst.studio.bt.MiWear
@@ -82,6 +83,61 @@ class ConsoleBridge(
                 .put("policy", Hub.policy.toJson())
                 .put("uptimeMs", System.currentTimeMillis() - Hub.startedAt)
         )
+
+        "account.status" -> {
+            val c = Hub.cred
+            ok(
+                JSONObject()
+                    .put("loggedIn", c != null)
+                    .put("userId", c?.userId ?: JSONObject.NULL)
+                    .put("savedAddress", Vault.get("device.address") ?: JSONObject.NULL)
+                    .put("hasAuthkey", !Vault.get("authkey").isNullOrBlank())
+            )
+        }
+
+        "account.login" -> {
+            val user = a.optString("user").trim()
+            val pass = a.optString("password")
+            require(user.isNotBlank() && pass.isNotBlank()) { "账号和密码都要填" }
+            val cred = Hub.account.login(user, pass)
+            Hub.cred = cred
+            Vault.set("mi.cred", JSONObject()
+                .put("userId", cred.userId)
+                .put("cUserId", cred.cUserId)
+                .put("ssecurity", cred.ssecurity)
+                .put("serviceToken", cred.serviceToken)
+                .put("passToken", cred.passToken)
+                .put("deviceId", cred.deviceId)
+                .toString())
+            val list = Hub.account.devices(cred)
+            ok(JSONObject().put("userId", cred.userId).put("devices", JSONObject.wrap(list.map { it.toJson() })))
+        }
+
+        "account.devices" -> {
+            val c = Hub.cred ?: throw IllegalStateException("请先登录小米账号")
+            val list = Hub.account.devices(c)
+            ok(JSONObject().put("devices", JSONObject.wrap(list.map { it.toJson() })))
+        }
+
+        /** 选中云端设备：把 mac 与 authkey 落到本机，后续连接用它 */
+        "account.use" -> {
+            val c = Hub.cred ?: throw IllegalStateException("请先登录小米账号")
+            val did = a.optString("did")
+            require(did.isNotBlank()) { "缺少 did" }
+            val dev = Hub.account.devices(c).firstOrNull { it.did == did }
+                ?: throw IllegalStateException("云端没有这台设备")
+            val key = dev.authkey ?: throw IllegalStateException("这台设备没有返回 authkey")
+            require(key.matches(Regex("[0-9a-fA-F]{32}"))) { "authkey 格式异常" }
+            Vault.set("authkey", key)
+            dev.mac?.let { Vault.set("device.address", it.uppercase()) }
+            ok(JSONObject().put("device", dev.toJson()).put("address", dev.mac ?: JSONObject.NULL))
+        }
+
+        "account.logout" -> {
+            Hub.cred = null
+            Vault.remove("mi.cred")
+            ok(JSONObject())
+        }
 
         "protocol.get" -> ok(Hub.protocol.toJson())
 

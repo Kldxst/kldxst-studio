@@ -6,6 +6,8 @@ import com.kldxst.studio.bridge.BridgeEngine
 import com.kldxst.studio.bridge.BridgePolicy
 import com.kldxst.studio.bridge.OkHttpFetcher
 import com.kldxst.studio.bridge.RingLog
+import com.kldxst.studio.account.MiAccount
+import com.kldxst.studio.account.MiLogin
 import com.kldxst.studio.bt.MiWear
 import com.kldxst.studio.bt.ProtocolProfile
 
@@ -37,6 +39,12 @@ object Hub {
     val startedAt: Long = System.currentTimeMillis()
 
     val wear: MiWear by lazy { MiWear(app) { line -> log.add("[链路] $line") } }
+
+    /** 小米账号：登录后拿 ssecurity / serviceToken，再取设备 authkey */
+    val account: MiLogin by lazy { MiLogin { line -> log.add("[账号] $line") } }
+
+    @Volatile
+    var cred: MiAccount.Credentials? = null
 
     private val fetcher: OkHttpFetcher by lazy { OkHttpFetcher { policy } }
 
