@@ -130,14 +130,13 @@ class MainActivity : AppCompatActivity() {
 
     /** 控制台不可达时的本地兜底页：说清楚缺什么，并提供重试/诊断 */
     private fun showOffline(reason: String) {
-        val hosts = Hub.wear.hosts().entries.joinToString("") { (k, v) ->
-            "<li>${if (v) "✅" else "❌"} $k</li>"
-        }
+        val bluetooth = if (Hub.wear.available()) "蓝牙已开启" else "蓝牙未开启"
+        val saved = com.kldxst.studio.secure.Vault.get("device.address") ?: "未保存设备"
         val html = """
             <!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
             <style>
-              :root{color-scheme:dark}
+              :root{color-scheme:light}
               body{margin:0;padding:24px;background:#F5F7FB;color:#141821;
                    font:15px/1.6 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif}
               h1{font-size:19px;margin:0 0 8px;color:#2563EB}
@@ -150,7 +149,7 @@ class MainActivity : AppCompatActivity() {
             </style></head><body>
             <h1>控制台暂时连不上</h1>
             <div class="card">${reason.replace("<", "&lt;")}</div>
-            <div class="card"><b>本机检查</b><ul>$hosts</ul>
+            <div class="card"><b>本机检查</b><ul><li>$bluetooth</li><li>上次连接：$saved</li></ul>
               <code>${BuildConfig.CONSOLE_URL}</code></div>
             <div class="card"><b>接下来</b><br>
               1. 确认网络可用（控制台只走 HTTPS）<br>

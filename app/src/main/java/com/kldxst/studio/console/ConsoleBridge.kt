@@ -124,6 +124,9 @@ class ConsoleBridge(
             require(address.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) { "MAC 地址格式不对" }
             val transport = a.optString("transport", "spp").lowercase()
             val name = if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
+            // 记住这台设备：前台服务重连时要用
+            Vault.set("device.address", address)
+            Vault.set("device.transport", Hub.wear.transport)
             ok(JSONObject().put("device", name).put("transport", Hub.wear.transport))
         }
 
