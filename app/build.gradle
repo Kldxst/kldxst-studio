@@ -90,14 +90,6 @@ android {
 }
 
 dependencies {
-    /*
-     * 小米穿戴 SDK（社区 clean-room 重写版）。它负责：
-     * 枚举已配对设备、查询/拉起快应用、收发消息、推送通知、订阅设备状态。
-     * 蓝牙连接由小米运动健康代管，本应用不直接碰 BLE —— 这是官方通道，
-     * 也是目前唯一不需要还原小米私有蓝牙协议栈的路径。
-     */
-    implementation files("libs/xms-wearable-lib_1.4_oronbox.1-release.aar")
-
     implementation "androidx.core:core-ktx:1.12.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.android.material:material:1.10.0"

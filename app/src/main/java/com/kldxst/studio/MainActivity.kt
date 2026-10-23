@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         web = WebView(this).apply {
-            setBackgroundColor(0xFF08080B.toInt())
+            setBackgroundColor(0xFFF5F7FB.toInt())
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
@@ -138,14 +138,14 @@ class MainActivity : AppCompatActivity() {
             <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
             <style>
               :root{color-scheme:dark}
-              body{margin:0;padding:24px;background:#08080B;color:#EAE4D8;
+              body{margin:0;padding:24px;background:#F5F7FB;color:#141821;
                    font:15px/1.6 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif}
-              h1{font-size:19px;margin:0 0 8px;color:#E8A33D}
-              .card{background:#121218;border:1px solid #2B2B36;border-radius:14px;padding:16px;margin:14px 0}
-              code{color:#948F86;font-size:12px;word-break:break-all}
-              button{width:100%;padding:13px;margin-top:10px;border-radius:12px;border:1px solid #2B2B36;
-                     background:#1B1B22;color:#EAE4D8;font-size:15px}
-              button.primary{background:#E8A33D;color:#08080B;border-color:#E8A33D;font-weight:600}
+              h1{font-size:19px;margin:0 0 8px;color:#2563EB}
+              .card{background:#FFFFFF;border:1px solid #E2E6EF;border-radius:14px;padding:16px;margin:14px 0}
+              code{color:#6B7280;font-size:12px;word-break:break-all}
+              button{width:100%;padding:13px;margin-top:10px;border-radius:12px;border:1px solid #E2E6EF;
+                     background:#FFFFFF;color:#141821;font-size:15px}
+              button.primary{background:#2563EB;color:#FFFFFF;border-color:#2563EB;font-weight:600}
               ul{padding-left:20px;margin:6px 0}
             </style></head><body>
             <h1>控制台暂时连不上</h1>

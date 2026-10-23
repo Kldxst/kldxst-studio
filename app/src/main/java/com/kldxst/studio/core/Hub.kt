@@ -2,19 +2,18 @@ package com.kldxst.studio.core
 
 import android.content.Context
 import com.kldxst.studio.BuildConfig
-import com.kldxst.studio.bt.DirectLink
 import com.kldxst.studio.bridge.BridgeEngine
 import com.kldxst.studio.bridge.BridgePolicy
 import com.kldxst.studio.bridge.OkHttpFetcher
 import com.kldxst.studio.bridge.RingLog
-import com.kldxst.studio.wear.WearLink
+import com.kldxst.studio.bt.MiWear
+import com.kldxst.studio.bt.ProtocolProfile
 
 /**
  * 进程内唯一的服务容器。
  *
- * 控制台（WebView）只通过 [com.kldxst.studio.console.ConsoleBridge] 访问它，
- * 所以「原生能力」的边界就是这一个对象的公开成员 —— 加功能时先想清楚
- * 它属于这里，还是属于服务端下发的页面（后者不需要重新打包 APK）。
+ * 只有直连一条链路（[MiWear]），不再有「小米运动健康代转」的旁路。
+ * 控制台通过 [com.kldxst.studio.console.ConsoleBridge] 访问这里。
  */
 object Hub {
 
@@ -27,17 +26,17 @@ object Hub {
     var policy: BridgePolicy = BridgePolicy()
 
     @Volatile
+    var protocol: ProtocolProfile = ProtocolProfile()
+
+    @Volatile
     var bridgeRunning: Boolean = false
 
     @Volatile
-    var lastBridgeError: String? = null
+    var lastError: String? = null
 
     val startedAt: Long = System.currentTimeMillis()
 
-    val wear: WearLink by lazy { WearLink(app) }
-
-    /** 直连通道（自行占蓝牙，authkey 握手）。与官方 SDK 通道并存，谁可用走谁 */
-    val direct: DirectLink by lazy { DirectLink(app) { line -> log.add("[直连] $line") } }
+    val wear: MiWear by lazy { MiWear(app) { line -> log.add("[链路] $line") } }
 
     private val fetcher: OkHttpFetcher by lazy { OkHttpFetcher { policy } }
 
@@ -52,18 +51,24 @@ object Hub {
     fun applyPolicy(p: BridgePolicy) {
         policy = p
         bridge.updatePolicy(p)
-        log.add("策略已更新：白名单=${p.allowHosts.size} 黑名单=${p.blockHosts.size} 上限=${p.maxResponseBytes}B")
+        log.add("网桥策略已更新：白名单 ${p.allowHosts.size} 条")
     }
 
-    /** 给控制台的能力声明：页面据此决定显示哪些按钮，而不是靠猜 */
+    fun applyProtocol(p: ProtocolProfile) {
+        protocol = p
+        wear.profile = p
+        log.add("协议参数已更新：magic=0x${p.magic.toString(16)} 命令 ${p.ops.size} 条")
+    }
+
+    /** 能力声明：页面据此决定显示哪些按钮，而不是靠猜 */
     fun capabilities(): Map<String, Any> = mapOf(
-        "wear" to true,
-        "notify" to true,
+        "direct" to true,
+        "ble" to true,
+        "spp" to true,
         "bridge" to true,
         "rpkInspect" to true,
-        "licensePush" to true,
-        "installPush" to false,
-        "bleProtocol" to true
+        "notifyRelay" to true,
+        "protocolCalibrated" to (protocol.ops.isNotEmpty())
     )
 
     fun buildInfo(): Map<String, Any> = mapOf(

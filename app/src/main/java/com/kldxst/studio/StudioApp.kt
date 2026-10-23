@@ -23,10 +23,10 @@ class StudioApp : Application() {
         val nm = getSystemService(NotificationManager::class.java)
         val ch = NotificationChannel(
             CHANNEL_SERVICE,
-            "网桥与设备连接",
+            "直连与网桥",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "保持与手环的连接，并代快应用发出网络请求"
+            description = "保持与手环的蓝牙连接，并代快应用发出网络请求"
             setShowBadge(false)
         }
         nm.createNotificationChannel(ch)

@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 无 ActionBar 的深色主题：控制台是 WebView，原生只提供容器 -->
-    <style name="Theme.KldxstStudio" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@color/ink_bg</item>
-        <item name="android:navigationBarColor">@color/ink_bg</item>
-        <item name="android:windowBackground">@color/ink_bg</item>
-        <item name="colorPrimary">@color/amber</item>
-        <item name="colorOnPrimary">@color/ink_bg</item>
-        <item name="android:textColorPrimary">@color/paper</item>
+    <!-- 亮色主题：控制台是 WebView，原生只提供容器 -->
+    <style name="Theme.KldxstStudio" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="colorPrimary">@color/blue</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:textColorPrimary">@color/ink</item>
     </style>
 </resources>

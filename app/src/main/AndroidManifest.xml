@@ -26,11 +26,7 @@
         android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="30" />
 
-    <!-- Android 11 起必须显式声明才能看到这些宿主 App -->
     <queries>
-        <package android:name="com.xiaomi.wearable" />
-        <package android:name="com.mi.health" />
-        <package android:name="org.zxor.oronbox" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
@@ -64,6 +60,16 @@
             android:name=".service.StudioService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- 通知转发：需要用户在系统设置里授予通知使用权 -->
+        <service
+            android:name=".service.NotifyRelay"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <receiver
             android:name=".service.BootReceiver"

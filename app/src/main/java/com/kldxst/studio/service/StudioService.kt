@@ -14,14 +14,16 @@ import com.kldxst.studio.BuildConfig
 import com.kldxst.studio.MainActivity
 import com.kldxst.studio.R
 import com.kldxst.studio.StudioApp
+import com.kldxst.studio.bt.FrameCodec
 import com.kldxst.studio.core.Hub
+import com.kldxst.studio.secure.Vault
 import kotlinx.coroutines.launch
 
 /**
- * 前台服务：网桥 + 设备保持。
+ * 前台服务：保持直连 + 跑网桥。
  *
- * 为什么必须是前台服务：快应用的请求随时可能到达（激活、云存档、排行榜），
- * 后台进程被系统回收就等于「网桥掉线」。前台服务把进程钉住，锁屏也能代发。
+ * 直连是唯一链路：这里自己占蓝牙，不依赖小米运动健康。后台被回收就等于掉线，
+ * 所以用前台服务把进程钉住。
  */
 class StudioService : LifecycleService() {
 
@@ -33,64 +35,72 @@ class StudioService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         Hub.init(this)
-        Hub.wear.onMessage = { text -> onWearFrame(text) }
+        Hub.wear.onFrame = { frame ->
+            val type = Hub.protocol.ops["bridge"]
+            if (type != null && frame.type == type) {
+                val addr = Hub.wear.peer?.address ?: "unknown"
+                val text = runCatching { String(frame.payload, Charsets.UTF_8) }.getOrNull()
+                if (text != null) {
+                    Hub.bridge.onFrame(addr, BuildConfig.APPLICATION_ID, text) { reply ->
+                        lifecycleScope.launch {
+                            runCatching {
+                                Hub.wear.sendFrame(type, FrameCodec.utf8(reply))
+                            }.onFailure { Hub.log.add("网桥回包失败：${it.message}") }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             ACTION_STOP -> {
-                stopBridge()
+                stopAll()
                 stopSelf()
                 return START_NOT_STICKY
             }
-            else -> startBridge()
+            else -> startAll()
         }
         return START_STICKY
     }
 
-    private fun startBridge() {
-        startForeground(NOTIFICATION_ID, buildNotification("正在连接手环…"))
+    private fun startAll() {
+        startForeground(NOTIFICATION_ID, buildNotification("准备连接…"))
         Hub.bridgeRunning = true
         Hub.log.add("服务启动")
         lifecycleScope.launch {
+            val address = Vault.get("device.address")
+            if (address.isNullOrBlank()) {
+                updateNotification("未连接：先在控制台里连接一次手环")
+                Hub.log.add("没有已保存的设备地址")
+                return@launch
+            }
+            val transport = Vault.get("device.transport") ?: "spp"
             try {
-                val node = Hub.wear.connect()
-                Hub.wear.authorize()
-                Hub.wear.listen()
-                updateNotification("已连接 ${node.name ?: "手环"}，网桥就绪")
-                Hub.log.add("已连接 ${node.name}（${node.id}），网桥就绪")
+                if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
+                updateNotification("已连接 ${Hub.wear.peer?.name ?: address}")
+                Hub.log.add("已连接 $address（$transport）")
+                val key = Vault.get("authkey")
+                if (!key.isNullOrBlank()) {
+                    runCatching { Hub.wear.auth(key) }
+                        .onSuccess { Hub.log.add("authkey 已发出，回包：${it.optString("reply")}") }
+                        .onFailure { Hub.log.add("authkey 握手失败：${it.message}") }
+                }
             } catch (e: Exception) {
-                Hub.lastBridgeError = e.message
-                updateNotification("未连接手环：${e.message}")
+                Hub.lastError = e.message
+                updateNotification("连接失败：${e.message}")
                 Hub.log.add("连接失败：${e.message}")
             }
         }
     }
 
-    private fun stopBridge() {
+    private fun stopAll() {
         Hub.bridgeRunning = false
-        Hub.wear.disconnect()
+        Hub.wear.close()
         Hub.log.add("服务停止")
         stopForeground(STOP_FOREGROUND_REMOVE)
-    }
-
-    /**
-     * 快应用上行帧 → 引擎。
-     *
-     * 包名固定用本应用的 applicationId：官方 SDK 的通道身份由 binder UID 决定，
-     * 一个 APK 只能服务同名快应用。这一点在控制台的「能力」页有明确说明，
-     * 不做含糊处理。
-     */
-    private fun onWearFrame(text: String) {
-        val addr = Hub.wear.node?.id ?: "unknown"
-        val pkg = BuildConfig.APPLICATION_ID
-        Hub.bridge.onFrame(addr, pkg, text) { reply ->
-            lifecycleScope.launch {
-                runCatching { Hub.wear.send(reply) }
-                    .onFailure { Hub.log.add("回包失败：${it.message}") }
-            }
-        }
     }
 
     private fun buildNotification(text: String): Notification {
@@ -136,7 +146,7 @@ class StudioService : LifecycleService() {
     }
 }
 
-/** 开机自启：用户上次开着网桥，就继续开着 */
+/** 开机自启：上次开着网桥就继续开着 */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
