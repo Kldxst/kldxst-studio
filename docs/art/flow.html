@@ -1,77 +1,51 @@
-<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<style>
-  :root{
-    --bg:#08080B; --panel:#121218; --line:#2B2B36;
-    --paper:#EAE4D8; --gray:#948F86; --amber:#E8A33D; --moss:#7FA98A;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{
-    width:1600px;height:720px;background:
-      radial-gradient(800px 500px at 12% 0%, rgba(232,163,61,.09), transparent 60%),
-      var(--bg);
-    color:var(--paper);font-family:"Microsoft YaHei","PingFang SC",sans-serif;
-    padding:46px 60px;overflow:hidden;
-  }
-  h1{font-size:32px;font-weight:700}
-  h1 i{color:var(--amber);font-style:normal}
-  .sub{color:var(--gray);font-size:14px;margin-top:8px}
-  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:26px;align-items:start}
-  .lane{border:1px solid var(--line);border-radius:16px;background:rgba(18,18,24,.6);padding:18px 20px}
-  .lane-title{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--gray);margin-bottom:14px}
-  .dot{width:8px;height:8px;border-radius:50%}
-  .dot.a{background:var(--amber)}
-  .dot.m{background:var(--moss)}
-  .step{display:flex;gap:14px;padding:12px 0;border-bottom:1px dashed rgba(43,43,54,.9)}
-  .step:last-child{border-bottom:0}
-  .n{
-    flex:0 0 26px;height:26px;border-radius:8px;display:grid;place-items:center;
-    font-size:13px;font-weight:700;color:#0B0B0E;background:var(--amber);
-  }
-  .n.m{background:var(--moss)}
-  .txt b{display:block;font-size:15.5px;font-weight:650}
-  .txt small{display:block;color:var(--gray);font-size:12.5px;margin-top:3px;line-height:1.5}
-  .flow-note{
-    margin-top:24px;border:1px solid var(--line);border-radius:14px;padding:16px 18px;
-    background:rgba(232,163,61,.05);font-size:13px;color:#D9D2C4;line-height:1.7;
-  }
-  .flow-note b{color:var(--amber);font-weight:650}
-  .foot{margin-top:18px;display:flex;justify-content:space-between;color:var(--gray);font-size:12.5px}
-</style>
-</head>
-<body>
-  <h1>K<i>社</i>工坊 · 全流程</h1>
-  <div class="sub">从下单到上手，手环侧四步，手机侧三步。</div>
-
-  <div class="lanes">
-    <div class="lane">
-      <div class="lane-title"><span class="dot a"></span>手环侧</div>
-      <div class="step"><div class="n">1</div><div class="txt"><b>装作品</b><small>从作品页下载 rpk，装进手环</small></div></div>
-      <div class="step"><div class="n">2</div><div class="txt"><b>读设备码</b><small>打开作品的「关于 / 设置」页，记下 8 位设备码</small></div></div>
-      <div class="step"><div class="n">3</div><div class="txt"><b>登记授权</b><small>激活站填兑换码 + 设备码，提交</small></div></div>
-      <div class="step"><div class="n">4</div><div class="txt"><b>取回授权</b><small>回到作品轻触屏幕，自动取回并落盘，之后离线可用</small></div></div>
-    </div>
-
-    <div class="lane">
-      <div class="lane-title"><span class="dot m"></span>手机侧</div>
-      <div class="step"><div class="n m">5</div><div class="txt"><b>装 K社工坊</b><small>扫码安装，打开即进控制台</small></div></div>
-      <div class="step"><div class="n m">6</div><div class="txt"><b>连接与网桥</b><small>连接手环；直连需要 authkey，先停掉小米运动健康</small></div></div>
-      <div class="step"><div class="n m">7</div><div class="txt"><b>启动与创作</b><small>一键拉起作品；创作台用同一设备码登录</small></div></div>
-      <div class="step"><div class="n m">·</div><div class="txt"><b>之后更新</b><small>只刷新控制台页面，不用重装应用</small></div></div>
-    </div>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:
+  radial-gradient(760px 560px at 84% 4%, rgba(37,99,235,.10), transparent 62%),
+  radial-gradient(700px 560px at 6% 96%, rgba(255,111,165,.10), transparent 60%),
+  #F5F7FB;
+  color:#141821;font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;overflow:hidden}
+.phone{position:relative;background:linear-gradient(160deg,#FFFFFF,#EEF2FA 62%);
+  border:1px solid #D9DFEC;border-radius:46px;padding:10px;
+  box-shadow:0 26px 60px rgba(37,99,235,.14), inset 0 1px 0 #fff}
+.phone::after{content:"";position:absolute;left:50%;top:16px;transform:translateX(-50%);
+  width:104px;height:22px;border-radius:12px;background:#E6EBF5}
+iframe{border:0;border-radius:38px;display:block;background:#F5F7FB}
+body{width:1600px;height:720px;padding:46px 60px}
+h1{font-size:32px;font-weight:800} h1 i{font-style:normal;color:#2563EB}
+.sub{color:#6B7280;font-size:14px;margin-top:8px}
+.lanes{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;align-items:start}
+.lane{border:1px solid #E2E6EF;border-radius:16px;background:#fff;padding:16px 20px}
+.lane-title{display:flex;align-items:center;gap:10px;font-size:14px;color:#6B7280;margin-bottom:10px}
+.dot{width:8px;height:8px;border-radius:50%} .dot.a{background:#2563EB} .dot.m{background:#FF6FA5}
+.step{display:flex;gap:14px;padding:12px 0;border-bottom:1px dashed #E2E6EF}
+.step:last-child{border-bottom:0}
+.n{flex:0 0 26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff}
+.n.b{background:#2563EB} .n.p{background:#FF6FA5}
+.txt b{display:block;font-size:15.5px;font-weight:700}
+.txt small{display:block;color:#6B7280;font-size:12.5px;margin-top:3px;line-height:1.5}
+.note{margin-top:22px;border:1px solid #FFF3CC;background:#FFFBEF;border-radius:14px;padding:15px 18px;font-size:13px;color:#5A4300;line-height:1.7}
+.note b{color:#8A6100}
+.foot{margin-top:16px;display:flex;justify-content:space-between;color:#6B7280;font-size:12.5px}
+</style></head><body>
+<h1>K<i>社</i>工坊 · 全流程</h1>
+<div class="sub">从下单到上手，手环侧四步，手机侧三步。</div>
+<div class="lanes">
+  <div class="lane"><div class="lane-title"><span class="dot a"></span>手环侧</div>
+    <div class="step"><div class="n b">1</div><div class="txt"><b>装作品</b><small>从作品页下载 rpk，装进手环</small></div></div>
+    <div class="step"><div class="n b">2</div><div class="txt"><b>读设备码</b><small>打开作品的「关于 / 设置」页，记下 8 位设备码</small></div></div>
+    <div class="step"><div class="n b">3</div><div class="txt"><b>登记授权</b><small>激活站填兑换码 + 设备码，提交</small></div></div>
+    <div class="step"><div class="n b">4</div><div class="txt"><b>取回授权</b><small>回到作品轻触屏幕，自动取回并落盘</small></div></div>
   </div>
-
-  <div class="flow-note">
-    <b>设备码只有一条：</b>八个作品通用同一个码，记一次即可。<br>
-    <b>授权只绑设备：</b>许可证由服务器签名并绑定这台设备，换设备需重新登记。<br>
-    <b>网桥是可选的：</b>9 Pro 可直连联网；10 Pro 或需要代发请求时，再开网桥。
+  <div class="lane"><div class="lane-title"><span class="dot m"></span>手机侧</div>
+    <div class="step"><div class="n p">5</div><div class="txt"><b>装 K社工坊</b><small>打开即进控制台</small></div></div>
+    <div class="step"><div class="n p">6</div><div class="txt"><b>直连设备</b><small>停掉小米运动健康，扫描并连接，填 authkey 握手</small></div></div>
+    <div class="step"><div class="n p">7</div><div class="txt"><b>应用与网桥</b><small>启动作品、查列表、开网桥、查授权</small></div></div>
+    <div class="step"><div class="n p">·</div><div class="txt"><b>之后更新</b><small>只刷新控制台页面，不用重装应用</small></div></div>
   </div>
-
-  <div class="foot">
-    <span>studio.kldxst.me · 激活站 active.kldxst.me</span>
-    <span>控制台四个页面：设备 / 作品 / 网桥 / 设置</span>
-  </div>
-</body>
-</html>
+</div>
+<div class="note"><b>设备码只有一条：</b>八个作品通用同一个码，记一次即可。<br>
+<b>连接只有一条：</b>直连，不经过小米运动健康；开始前必须让它让出蓝牙。<br>
+<b>授权只绑设备：</b>许可证由服务器签名并绑定这台设备，换设备需重新登记。</div>
+<div class="foot"><span>studio.kldxst.me · 激活站 active.kldxst.me</span><span>设备 / 应用 / 网桥 / 设置</span></div>
+</body></html>
