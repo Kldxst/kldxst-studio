@@ -22,6 +22,18 @@ APK 只打包一次，界面与流程改动都在服务端（`studio.kldxst.me`�
                      └───────────────────────────────┘
 ```
 
+## 账号与授权
+
+连接前需要 authkey，而 authkey 只能从小米账号取：
+
+```
+账号密码 → serviceLogin → serviceLoginAuth2 → sts → bledevice_info
+        → { did, mac, authkey } → 写入本机 → 连接设备
+```
+
+端点与凭据字段来自对 AstroBox 2.2.0 的分析，见 `docs/RE-ASTROBOX.md`。
+设备授权用 **HMAC-SHA256(authkey, nonce)**，不是 AES。
+
 ## 连接方式：直连，无侧链
 
 不经过小米运动健康，不依赖任何第三方 App 代转。手机自己占蓝牙：
@@ -42,12 +54,13 @@ APK 只打包一次，界面与流程改动都在服务端（`studio.kldxst.me`�
 | BLE 扫描（FE95 识别、产品号、RSSI 排序） | ✅ |
 | SPP 连接（RFCOMM 0x1101） | ✅ |
 | BLE 连接（FE95 服务发现、CCCD 订阅、按 MTU 切片写） | ✅ |
-| authkey 握手（AES-128-ECB） | ⚠️ 帧已发出，回包语义待真机校准 |
+| 小米账号登录（取 authkey / did / mac） | ✅ |
+| authkey 握手（HMAC-SHA256） | ⚠️ 帧已发出，回包语义待真机校准 |
 | 帧编解码（magic/长度字节序/头长可配） | ✅ |
 | 命令层（消息号由服务端下发） | ⚠️ 消息号未校准，界面标「未校准」 |
 | 收包记录 / 手动发帧 / 按命令发空包 | ✅ |
 | 通知转发（系统通知 → 手环） | ⚠️ 依赖 notify 消息号 |
-| 网桥（代发 HTTP，v1–v3） | ✅ |
+| 网桥（代发 HTTP，v1–v3，随应用启动） | ✅ |
 | 网桥协议自检（无需手环） | ✅ |
 | 安装包体检（manifest / SHA-256 / 路径穿越） | ✅ |
 | 授权状态查询（全作品） | ✅ |
