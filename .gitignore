@@ -15,6 +15,10 @@ node_modules/
 .wrangler/
 .dev.vars
 
+# 本地 CI/预览临时物
+.ci-artifact*/
+.console-preview*.png
+
 # 系统
 .DS_Store
 Thumbs.db

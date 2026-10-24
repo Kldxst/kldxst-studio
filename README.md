@@ -120,6 +120,8 @@ push main
 `ANDROID_STORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`；未配置时产物为
 debug 签名，不能覆盖安装正式包。
 
+1.1.0 的构建记录与 SHA-256 见 `docs/RELEASE_1.1.0.md`，仓库内 `out/app-release.apk` 是同一产物。
+
 ## 部署控制台
 
 ```bash
