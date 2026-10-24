@@ -46,7 +46,9 @@ data class ProtocolProfile(
         }
         require(headerBytes in 2..64) { "headerBytes 必须在 2..64" }
         require(maxFrame in 64..65535) { "maxFrame 必须在 64..65535" }
-        require(authMode in AUTH_MODES) { "不支持的 authMode：$authMode" }
+        require(authMode in setOf("hmac-sha256", "aes-ecb-128", "aes-ecb-256", "none")) {
+            "不支持的 authMode：$authMode"
+        }
         require(authType in 0..255) { "authType 必须在 0..255" }
         require(authNonceBytes in 8..32) { "authNonceBytes 必须在 8..32" }
         require(ops.all { (k, v) -> k.isNotBlank() && v in 1..255 }) { "命令消息号必须是 1..255" }
