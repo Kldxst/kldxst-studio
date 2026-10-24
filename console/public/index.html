@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#F5F7FB">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
 <title>K社工坊</title>
 <style>
   :root{
@@ -288,7 +290,7 @@
   if (!TOKEN && NATIVE) {
     try { TOKEN = window.Kldxst.sessionToken() || ''; } catch (e) { TOKEN = ''; }
   }
-  var seq = 0, pending = {}, transport = 'spp', peers = [], policyState = {};
+  var seq = 0, pending = {}, transport = 'spp', peers = [], policyState = {}, deviceOps = {};
 
   window.KldxstOnResult = function (id, json) {
     var cb = pending[id]; if (!cb) return; delete pending[id];
@@ -479,6 +481,8 @@
     var r = await call('device.status');
     if (!r.ok) return;
     var d = r.data;
+    deviceOps = d.ops || {};
+    syncGameButtons();
     if (!d.connected) {
       $('devState').innerHTML = '<div class="empty">尚未连接</div>';
       setConn('未连接', '');
@@ -529,6 +533,17 @@
   $('btnClose').onclick = async function () { await call('device.close'); toast('已断开'); refreshState(); };
 
   var appsLoaded = false, games = [];
+
+  function syncGameButtons() {
+    Array.prototype.forEach.call(document.querySelectorAll('#gameList button[data-act]'), function (b) {
+      if (b.dataset.act === 'buy') return;
+      var op = b.dataset.act === 'launch' ? 'applaunch' : b.dataset.act === 'list' ? 'applist' : 'appuninstall';
+      var ready = !!deviceOps[op];
+      b.disabled = !ready;
+      b.title = ready ? '' : '命令消息号尚未校准';
+    });
+  }
+
   async function loadApps() {
     appsLoaded = true;
     try {
@@ -549,6 +564,7 @@
         (g.buy ? '<button class="mini" data-act="buy" data-i="' + i + '">购买</button>' : '') +
         '</div></div>';
     }).join('');
+    syncGameButtons();
   }
 
   $('gameList').addEventListener('click', async function (ev) {
@@ -560,6 +576,7 @@
       return;
     }
     var op = b.dataset.act === 'launch' ? 'applaunch' : b.dataset.act === 'list' ? 'applist' : 'appuninstall';
+    if (!deviceOps[op]) { toast('命令消息号尚未校准'); return; }
     var r = await call('op.run', { op: op, payloadHex: '' });
     if (!r.ok) { toast(r.message || '执行失败'); return; }
     toast(r.data.replied ? '已回包' : '已发送，未回包');
@@ -736,6 +753,10 @@
     }
     var saved = await call('secure.get', { key: 'authkey' });
     if (saved.ok && saved.data.value) $('authkey').value = saved.data.value;
+    window.addEventListener('focus', function () {
+      call('permissions.status').then(function (x) { if (x.ok) renderPermissions(x.data); });
+      refreshNotify();
+    });
     refreshState(); refreshFrames(); refreshNotify();
     var tab = (location.hash || '').replace('#', '');
     if (tab && document.querySelector('nav button[data-tab="' + tab + '"]')) document.querySelector('nav button[data-tab="' + tab + '"]').click();

@@ -74,12 +74,14 @@ object Hub {
             Vault.get(KEY_CRED)?.let { text ->
                 val o = JSONObject(text)
                 val userId = o.optString("userId")
-                if (userId.isNotBlank()) {
+                val ssecurity = o.optString("ssecurity")
+                val serviceToken = o.optString("serviceToken")
+                if (userId.isNotBlank() && ssecurity.isNotBlank() && serviceToken.isNotBlank()) {
                     cred = MiAccount.Credentials(
                         userId = userId,
                         cUserId = o.optString("cUserId"),
-                        ssecurity = o.optString("ssecurity"),
-                        serviceToken = o.optString("serviceToken"),
+                        ssecurity = ssecurity,
+                        serviceToken = serviceToken,
                         passToken = o.optString("passToken"),
                         deviceId = o.optString("deviceId")
                     )

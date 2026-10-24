@@ -8,12 +8,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.View
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -102,8 +102,6 @@ class MainActivity : AppCompatActivity() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.mediaPlaybackRequiresUserGesture = true
-            settings.saveFormData = false
-            settings.savePassword = false
             settings.userAgentString = settings.userAgentString + " KldxstStudio/${BuildConfig.VERSION_NAME}"
             addJavascriptInterface(bridge, "Kldxst")
             webViewClient = Client()
@@ -114,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             val script = "window.__kldxstToken=${JSONObject.quote(token)};"
             runCatching {
+                @Suppress("DEPRECATION")
                 WebViewCompat.addDocumentStartJavaScript(
                     web,
                     script,
@@ -123,17 +122,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(web)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (web.canGoBack()) {
+                    web.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        })
         requestAppPermissions()
         web.loadUrl(BuildConfig.CONSOLE_URL)
         Hub.log.add("控制台加载 ${BuildConfig.CONSOLE_URL}")
-    }
-
-    override fun onBackPressed() {
-        if (this::web.isInitialized && web.canGoBack()) {
-            web.goBack()
-            return
-        }
-        super.onBackPressed()
     }
 
     private fun requestAppPermissions() {
@@ -155,7 +157,8 @@ class MainActivity : AppCompatActivity() {
         if (missing.isEmpty()) {
             StudioService.startIfEnabled(this)
         } else {
-            permissionLauncher.launch(missing.toTypedArray())
+            runCatching { permissionLauncher.launch(missing.toTypedArray()) }
+                .onFailure { Hub.log.add("请求权限失败：${it.message}") }
         }
     }
 
@@ -282,7 +285,4 @@ class MainActivity : AppCompatActivity() {
         }
         super.onDestroy()
     }
-
-    @Suppress("unused")
-    private fun noop(v: View) = Unit
 }

@@ -11,7 +11,7 @@
  *   npx wrangler secret put ACT_ORIGIN      # 可选，默认 https://active.kldxst.me
  */
 
-const VERSION = '1.0.0'
+const VERSION = '1.1.0'
 const DEFAULT_ACT_ORIGIN = 'https://active.kldxst.me'
 const ALLOWED_ORIGIN = 'https://studio.kldxst.me'
 
@@ -70,14 +70,24 @@ async function issueToken(env, device) {
   return { token: `${exp}.${sig}`, exp }
 }
 
+function constantTimeEqual(a, b) {
+  const x = String(a)
+  const y = String(b)
+  if (x.length !== y.length) return false
+  let diff = 0
+  for (let i = 0; i < x.length; i++) diff |= x.charCodeAt(i) ^ y.charCodeAt(i)
+  return diff === 0
+}
+
 async function verifyToken(env, device, token) {
   const secret = env.STUDIO_SECRET
   if (!secret || !token) return false
   const [expStr, sig] = String(token).split('.')
   const exp = Number(expStr)
-  if (!Number.isFinite(exp) || exp < Date.now()) return false
+  const now = Date.now()
+  if (!Number.isFinite(exp) || exp < now || exp > now + 15 * 60 * 1000) return false
   const want = await hmacHex(secret, `studio|${device}|${exp}`)
-  return sig === want
+  return constantTimeEqual(sig, want)
 }
 
 /* ------------------------------------------------------------------ */

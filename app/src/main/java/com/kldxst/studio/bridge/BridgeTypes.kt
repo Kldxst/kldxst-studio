@@ -124,9 +124,10 @@ object BridgeCaps {
     // 不声明 stream：v4 流式路径只在双方都声明时才启用，本端选择不分块流，
     // 让客户端走已经冻结的 v1-v3 语义，行为可预测。
     const val LOCAL_STREAM = false
-    const val MAX_UNCHUNKED_WIRE_LEN = 16384
+    // 默认 MiWear 帧只有 8KB；留出 JSON 头和 base64 膨胀的余量，单帧上限按 4KB 算。
+    const val MAX_UNCHUNKED_WIRE_LEN = 4096
     const val MIN_CHUNK = 256
-    const val MAX_CHUNK = 65536
+    const val MAX_CHUNK = 4096
     const val SESSION_IDLE_MS = 600_000L
 }
 

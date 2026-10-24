@@ -115,14 +115,14 @@ class StudioService : LifecycleService() {
     private suspend fun connectionLoop() {
         var backoff = 3_000L
         while (kotlinx.coroutines.currentCoroutineContext().isActive && Hub.bridgeRunning) {
-            val address = Vault.get("device.address")
+            val address = runCatching { Vault.get("device.address") }.getOrNull()
             if (address.isNullOrBlank()) {
                 updateNotification("未连接：先在控制台里连接一次手环")
                 delay(30_000)
                 continue
             }
             if (!Hub.wear.connected) {
-                val transport = Vault.get("device.transport") ?: "spp"
+                val transport = runCatching { Vault.get("device.transport") }.getOrNull() ?: "spp"
                 updateNotification("正在连接 ${address}…")
                 try {
                     if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
@@ -140,7 +140,7 @@ class StudioService : LifecycleService() {
                 }
             }
             if (Hub.wear.connected && Hub.wear.authState == "none") {
-                val key = Vault.get("authkey")
+                val key = runCatching { Vault.get("authkey") }.getOrNull()
                 if (!key.isNullOrBlank()) {
                     runCatching { Hub.wear.auth(key) }
                         .onSuccess { Hub.log.add("authkey ${it.optString("state")}") }
@@ -176,8 +176,10 @@ class StudioService : LifecycleService() {
     }
 
     private fun updateNotification(text: String) {
-        val nm = getSystemService(NotificationManager::class.java)
-        nm.notify(NOTIFICATION_ID, buildNotification(text))
+        runCatching {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.notify(NOTIFICATION_ID, buildNotification(text))
+        }.onFailure { Hub.log.add("更新通知失败：${it.message}") }
     }
 
     override fun onDestroy() {
