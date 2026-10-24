@@ -235,6 +235,8 @@ class MainActivity : AppCompatActivity() {
             <button onclick="window.__kldxstToken&&alert('已注入会话令牌，可继续使用')">检查会话</button>
             </body></html>
         """.trimIndent()
+        // 离线页的 base URL 是控制台域名；显式同步 origin，让“检查会话”按钮仍能走令牌校验。
+        bridge.currentOrigin = BuildConfig.CONSOLE_ORIGIN
         web.loadDataWithBaseURL(BuildConfig.CONSOLE_ORIGIN, html, "text/html", "utf-8", null)
     }
 

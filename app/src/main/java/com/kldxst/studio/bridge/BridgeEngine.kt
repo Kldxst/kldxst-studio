@@ -163,15 +163,20 @@ class BridgeEngine(
             lastRequestAt = System.currentTimeMillis()
             if (result.error != null) lastError = result.error
             val s = session(addr, pkg)
-            s.reply = reply
             s.lastActive = System.currentTimeMillis()
-            sendResponse(s, id, result, rawWanted)
+            sendResponse(s, id, result, rawWanted, reply)
         }
         log("fetch $pkg ${req.method} $url → ${if (result.error != null) "ERR ${result.error}" else result.status}")
     }
 
     /** 把 HTTP 结果编码成对端能解的帧；分片时按协商窗口推送 */
-    private fun sendResponse(s: Session, id: String, result: FetchResult, rawWanted: Boolean) {
+    private fun sendResponse(
+        s: Session,
+        id: String,
+        result: FetchResult,
+        rawWanted: Boolean,
+        reply: (String) -> Unit
+    ) {
         val neg = s.negotiated
         val original = result.body
         val compressed = compressIfNeeded(original, neg)
@@ -195,7 +200,7 @@ class BridgeEngine(
             val (encoding, wire) = encodeSingle(payload, neg, rawWanted)
             if (wire.length > BridgeCaps.MAX_UNCHUNKED_WIRE_LEN) {
                 // 未协商分片或边界情况：绝不能用一条蓝牙帧硬塞大响应。
-                s.reply(errorResponse(id, "响应体过大，对端未协商分片").also { log("单帧超限，已拒绝") })
+                reply(errorResponse(id, "响应体过大，对端未协商分片").also { log("单帧超限，已拒绝") })
                 return
             }
             resp.put("body", wire)
@@ -204,7 +209,7 @@ class BridgeEngine(
                 resp.put("compression", compression)
                 resp.put("originalBytes", original.size)
             }
-            s.reply(JSONObject().put("tag", "fetch").put("id", id).put("resp", resp).toString())
+            reply(JSONObject().put("tag", "fetch").put("id", id).put("resp", resp).toString())
             return
         }
 
@@ -231,9 +236,9 @@ class BridgeEngine(
             chunks.add(encode(payload.copyOfRange(off, end), encoding))
             off = end
         }
-        s.reply(JSONObject().put("tag", "fetch").put("id", id).put("resp", resp).toString())
+        reply(JSONObject().put("tag", "fetch").put("id", id).put("resp", resp).toString())
 
-        val tx = ChunkTx(id, chunks, if (useAck) neg.ackWindow else Int.MAX_VALUE, s.reply)
+        val tx = ChunkTx(id, chunks, if (useAck) neg.ackWindow else Int.MAX_VALUE, reply)
         s.tx[id] = tx
         tx.pump()
         if (!useAck) s.tx.remove(id)
@@ -478,7 +483,6 @@ class BridgeEngine(
     private class Session(val addr: String, val pkg: String, var negotiated: Negotiated) {
         var peer: PeerCaps = PeerCaps()
         var lastActive: Long = System.currentTimeMillis()
-        var reply: (String) -> Unit = {}
         val tx = HashMap<String, ChunkTx>()
         val stamps = ArrayDeque<Long>()
     }

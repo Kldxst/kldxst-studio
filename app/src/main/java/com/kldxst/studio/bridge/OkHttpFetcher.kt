@@ -78,7 +78,11 @@ class OkHttpFetcher(private val policyProvider: () -> BridgePolicy) : HttpFetche
         if (validated.denied != null) {
             return FetchResult(0, "", emptyMap(), ByteArray(0), validated.denied)
         }
-        val builder = Request.Builder().url(req.url)
+        val builder = try {
+            Request.Builder().url(req.url)
+        } catch (e: Exception) {
+            return FetchResult(0, "", emptyMap(), ByteArray(0), "URL 格式无效")
+        }
         var hasUa = false
         for ((k, v) in req.headers) {
             if (k.equals("host", true) || k.equals("content-length", true)) continue

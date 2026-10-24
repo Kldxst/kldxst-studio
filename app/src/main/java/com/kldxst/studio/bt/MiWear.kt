@@ -573,6 +573,7 @@ class MiWear(
     fun close() {
         authenticated = false
         authState = "none"
+        lastAuthReply = null
         writeDeferred?.complete(false)
         writeDeferred = null
         descriptorDeferred?.complete(false)

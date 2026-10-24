@@ -1,6 +1,6 @@
 # K社工坊 · Kldxst Studio
 
-手环工作台：**自己占蓝牙直连设备**，管理作品、代发联网、查授权。
+手环工作台：**自己占蓝牙直连设备**，管理作品、代发联网、查授权。当前版本 `1.1.0`。
 APK 只打包一次，界面与流程改动都在服务端（`studio.kldxst.me`）完成。
 
 ```
@@ -55,14 +55,14 @@ APK 只打包一次，界面与流程改动都在服务端（`studio.kldxst.me`�
 | SPP 连接（RFCOMM 0x1101） | ✅ |
 | BLE 连接（FE95 服务发现、CCCD 订阅、按 MTU 切片写） | ✅ |
 | 小米账号登录（取 authkey / did / mac） | ✅ |
-| authkey 握手（HMAC-SHA256） | ⚠️ 帧已发出，回包语义待真机校准 |
-| 帧编解码（magic/长度字节序/头长可配） | ✅ |
+| authkey 握手（HMAC-SHA256，可切 AES 校准模式） | ⚠️ 帧已发出，回包语义待真机校准 |
+| 帧编解码（magic/类型与长度偏移/字节序/头长可配） | ✅ |
 | 命令层（消息号由服务端下发） | ⚠️ 消息号未校准，界面标「未校准」 |
 | 收包记录 / 手动发帧 / 按命令发空包 | ✅ |
-| 通知转发（系统通知 → 手环） | ⚠️ 依赖 notify 消息号 |
-| 网桥（代发 HTTP，v1–v3，随应用启动） | ✅ |
+| 通知转发（系统通知 → 手环） | ⚠️ 依赖 notify 消息号；权限状态在控制台可见 |
+| 网桥（代发 HTTP，v1–v3，自动重连） | ✅ |
 | 网桥协议自检（无需手环） | ✅ |
-| 安装包体检（manifest / SHA-256 / 路径穿越） | ✅ |
+| 安装包体检（manifest / SHA-256 / 路径穿越 / 解压上限） | ✅ |
 | 授权状态查询（全作品） | ✅ |
 | 安装 / 卸载 / 表盘 / 音乐 / 固件 | ⚠️ 命令位已留，等消息号 |
 
@@ -84,26 +84,41 @@ AzkiDeck 把 MiWear 协议编译进 2.2MB 的 `libazvfnative.so`，AstroBox 的 
 
 亮色主题，蓝 `#2563EB` / 黄 `#F5B400` / 粉 `#FF6FA5`，四页：设备 / 应用 / 网桥 / 设置。
 
+## 权限
+
+首次打开会请求通知、附近设备（Android 12+）或定位（Android 11 及以下）权限。
+拒绝后「设备」页会显示缺失项，可点「授权」重试，或点「系统设置」手动打开。
+通知转发还需要系统的「通知使用权」，在「设置 → 通知转发」里跳转授权。
+
+前台服务只在已保存设备、且已授予蓝牙连接权限时启动；用户主动「断开」或「停止网桥」
+会同时关闭自动重连。
+
 ## 安全设计
 
 - 只走 TLS，关闭明文、不信任用户 CA。
-- 控制台三道闸：来源白名单 → 会话令牌 → 每个方法自行校验入参。
-- 网桥 SSRF 防护：只允许 https、禁 userinfo、禁非 443 端口、内网/回环/链路本地一律拒绝；
-  校验过的 IP 钉进 OkHttp 的 `Dns`，消除 rebinding 窗口。
-- 跨源重定向剥凭据，最多 10 跳。
+- 控制台三道闸：来源白名单 → 会话令牌 → 每个方法自行校验入参；令牌通过
+  `document-start` 注入，避免页面脚本启动时拿不到令牌。
+- 网桥 SSRF 防护：只允许 https、禁 userinfo、禁非 443 端口、内网/回环/链路本地/ULA
+  一律拒绝；一次解析的结果直接钉进 OkHttp 的 `Dns`，消除 rebinding 窗口。
+- 跨源重定向剥凭据，最多 10 跳；响应边读边计数，超过上限即截断，不先整包进内存。
 - authkey、协议参数、网桥策略存 Keystore AES-256-GCM 加密后的密文；仓库无任何私钥。
+- 资源包用中央目录检查路径穿越与条目上限，manifest 读取有 512KB 上限。
 
 ## 构建
 
-```bash
-gradle assembleRelease        # 需要 JDK 17；keystore.properties 存在则用正式签名
-gradle testDebugUnitTest      # 网桥协议用例，不需要手环
+**不需要在本地安装 Android SDK/JDK**。本项目按模板使用 GitHub Actions：
+
+```text
+push main
+  → Actions / build-apk
+  → testDebugUnitTest
+  → assembleRelease
+  → 下载 kldxst-studio-apk 产物
 ```
 
-推送到 `main` 后 GitHub Actions 自动跑单测 + 打包，产物在 Actions 的 `kldxst-studio-apk`。
-
-签名 secrets：`ANDROID_KEYSTORE_BASE64` / `ANDROID_STORE_PASSWORD` / `ANDROID_KEY_ALIAS` /
-`ANDROID_KEY_PASSWORD`。
+工作流固定 JDK 17 + Gradle 8.7。签名 secrets：`ANDROID_KEYSTORE_BASE64` /
+`ANDROID_STORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`；未配置时产物为
+debug 签名，不能覆盖安装正式包。
 
 ## 部署控制台
 

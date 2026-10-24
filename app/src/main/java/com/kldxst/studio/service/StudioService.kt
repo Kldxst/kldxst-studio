@@ -23,6 +23,7 @@ import com.kldxst.studio.StudioApp
 import com.kldxst.studio.bt.FrameCodec
 import com.kldxst.studio.core.Hub
 import com.kldxst.studio.secure.Vault
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -52,12 +53,17 @@ class StudioService : LifecycleService() {
                 val addr = Hub.wear.peer?.address ?: "unknown"
                 val text = runCatching { String(frame.payload, Charsets.UTF_8) }.getOrNull()
                 if (text != null) {
-                    Hub.bridge.onFrame(addr, BuildConfig.APPLICATION_ID, text) { reply ->
-                        lifecycleScope.launch {
-                            runCatching {
-                                Hub.wear.sendFrame(type, FrameCodec.utf8(reply))
-                            }.onFailure { Hub.log.add("网桥回包失败：${it.message}") }
-                        }
+                    // 网桥的 HTTP 请求是阻塞的，不能占用蓝牙回调线程。
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        runCatching {
+                            Hub.bridge.onFrame(addr, BuildConfig.APPLICATION_ID, text) { reply ->
+                                lifecycleScope.launch {
+                                    runCatching {
+                                        Hub.wear.sendFrame(type, FrameCodec.utf8(reply))
+                                    }.onFailure { Hub.log.add("网桥回包失败：${it.message}") }
+                                }
+                            }
+                        }.onFailure { Hub.log.add("网桥处理失败：${it.message}") }
                     }
                 }
             }
@@ -123,12 +129,6 @@ class StudioService : LifecycleService() {
                     Hub.lastError = null
                     updateNotification("已连接 ${Hub.wear.peer?.name ?: address}")
                     Hub.log.add("已连接 $address（$transport）")
-                    val key = Vault.get("authkey")
-                    if (!key.isNullOrBlank()) {
-                        runCatching { Hub.wear.auth(key) }
-                            .onSuccess { Hub.log.add("authkey ${it.optString("state")}") }
-                            .onFailure { Hub.log.add("authkey 握手失败：${it.message}") }
-                    }
                     backoff = 3_000
                 } catch (e: Exception) {
                     Hub.lastError = e.message
@@ -137,6 +137,14 @@ class StudioService : LifecycleService() {
                     delay(backoff)
                     backoff = (backoff * 2).coerceAtMost(60_000)
                     continue
+                }
+            }
+            if (Hub.wear.connected && Hub.wear.authState == "none") {
+                val key = Vault.get("authkey")
+                if (!key.isNullOrBlank()) {
+                    runCatching { Hub.wear.auth(key) }
+                        .onSuccess { Hub.log.add("authkey ${it.optString("state")}") }
+                        .onFailure { Hub.log.add("authkey 握手失败：${it.message}") }
                 }
             }
             delay(5_000)
@@ -201,7 +209,8 @@ class StudioService : LifecycleService() {
         fun startIfEnabled(ctx: Context) {
             val prefs = ctx.getSharedPreferences("kldxst", Context.MODE_PRIVATE)
             if (!prefs.getBoolean("bridge.autoStart", true)) return
-            if (Vault.get("device.address").isNullOrBlank()) return
+            val address = runCatching { Vault.get("device.address") }.getOrNull()
+            if (address.isNullOrBlank()) return
             start(ctx)
         }
 

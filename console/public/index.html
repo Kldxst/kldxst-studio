@@ -489,7 +489,10 @@
         + kv('链路', d.transport === 'ble' ? 'BLE' : 'SPP')
         + kv('authkey', d.authState === 'replied'
           ? '<span class="tag ok">已收到回包</span> <span class="tag">待真机确认</span>'
-          : d.authState === 'sending' ? tag(false, '发送中') : tag(false, '未握手'))
+          : d.authState === 'sending' ? tag(false, '发送中')
+          : d.authState === 'no_reply' ? tag(false, '未收到回包')
+          : d.authState === 'failed' ? tag(false, '握手失败')
+          : tag(false, '未握手'))
         + kv('命令', ops.length ? esc(ops.join(', ')) : tag(false, '未校准'));
       $('devState').innerHTML = html;
       setConn(d.transport === 'ble' ? 'BLE 已连' : 'SPP 已连', 'on');
