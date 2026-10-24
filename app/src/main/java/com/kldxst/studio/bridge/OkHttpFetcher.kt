@@ -32,10 +32,6 @@ class OkHttpFetcher(private val policyProvider: () -> BridgePolicy) : HttpFetche
         var current = req
         var hops = 0
         while (true) {
-            val denied = SsrfGuard.check(current.url, policy)
-            if (denied != null) {
-                return FetchResult(0, "", emptyMap(), ByteArray(0), denied)
-            }
             val result = single(current, policy)
             if (result.error != null) return result
             val location = result.headers.entries.firstOrNull { it.key.equals("location", true) }?.value
@@ -72,6 +68,16 @@ class OkHttpFetcher(private val policyProvider: () -> BridgePolicy) : HttpFetche
     }
 
     private fun single(req: FetchRequest, policy: BridgePolicy): FetchResult {
+        val method = req.method.uppercase()
+        if (method !in ALLOWED_METHODS) {
+            return FetchResult(0, "", emptyMap(), ByteArray(0), "不支持的请求方法：$method")
+        }
+
+        // validate 返回的地址直接钉进 Dns，后续不会再次解析。
+        val validated = SsrfGuard.validate(req.url, policy)
+        if (validated.denied != null) {
+            return FetchResult(0, "", emptyMap(), ByteArray(0), validated.denied)
+        }
         val builder = Request.Builder().url(req.url)
         var hasUa = false
         for ((k, v) in req.headers) {
@@ -84,18 +90,14 @@ class OkHttpFetcher(private val policyProvider: () -> BridgePolicy) : HttpFetche
             }
         }
         if (!hasUa) builder.header("User-Agent", "KldxstStudio/1.0 (wearable bridge)")
-        val method = req.method.uppercase()
         val raw = req.body
+        val contentType = req.headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value
         // GET/HEAD 不允许带 body，否则 OkHttp 直接抛 IllegalArgumentException
         val body = if (raw == null || method == "GET" || method == "HEAD") null
-        else raw.toRequestBody(req.headers["content-type"]?.toMediaTypeOrNull())
+        else raw.toRequestBody(contentType?.toMediaTypeOrNull())
         builder.method(method, body)
 
-        val pinned = try {
-            SsrfGuard.resolvePinned(URI(req.url).host ?: "")
-        } catch (e: Exception) {
-            return FetchResult(0, "", emptyMap(), ByteArray(0), "域名解析失败")
-        }
+        val pinned = validated.addresses
         val dns = object : Dns {
             override fun lookup(hostname: String): List<InetAddress> = pinned
         }
@@ -106,19 +108,48 @@ class OkHttpFetcher(private val policyProvider: () -> BridgePolicy) : HttpFetche
 
         return try {
             perCall.newCall(builder.build()).execute().use { resp ->
-                val bytes = resp.body?.bytes() ?: ByteArray(0)
-                val capped = if (bytes.size > policy.maxResponseBytes) {
-                    bytes.copyOf(policy.maxResponseBytes)
-                } else bytes
                 val headers = LinkedHashMap<String, String>()
                 for (name in resp.headers.names()) {
                     headers[name.lowercase()] = resp.headers.values(name).joinToString(", ")
                 }
-                FetchResult(resp.code, resp.message, headers, capped, null)
+                val out = java.io.ByteArrayOutputStream(minOf(policy.maxResponseBytes, 64 * 1024))
+                var total = 0
+                var truncated = false
+                resp.body?.byteStream()?.use { input ->
+                    val buf = ByteArray(16 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n <= 0) break
+                        val room = policy.maxResponseBytes - total
+                        if (room <= 0) {
+                            truncated = true
+                            break
+                        }
+                        val take = minOf(n, room)
+                        out.write(buf, 0, take)
+                        total += take
+                        if (take < n) {
+                            truncated = true
+                            break
+                        }
+                    }
+                }
+                FetchResult(
+                    status = resp.code,
+                    statusText = resp.message,
+                    headers = headers,
+                    body = out.toByteArray(),
+                    error = null,
+                    truncated = truncated
+                )
             }
         } catch (e: Exception) {
             FetchResult(0, "", emptyMap(), ByteArray(0), e.message ?: e.javaClass.simpleName)
         }
+    }
+
+    private companion object {
+        val ALLOWED_METHODS = setOf("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
     }
 
     private fun originOf(url: String): String = try {

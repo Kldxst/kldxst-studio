@@ -25,7 +25,9 @@ data class FetchResult(
     val statusText: String,
     val headers: Map<String, String>,
     val body: ByteArray,
-    val error: String? = null
+    val error: String? = null,
+    /** 响应体超过策略上限，body 中是前 N 字节 */
+    val truncated: Boolean = false
 ) {
     val ok: Boolean get() = error == null && status in 200..299
 }
@@ -69,29 +71,46 @@ data class BridgePolicy(
     }
 
     companion object {
-        fun fromJson(o: JSONObject?): BridgePolicy {
-            if (o == null) return BridgePolicy()
-            fun strSet(key: String): Set<String> {
+        /**
+         * 部分更新：控制台只提交用户改过的字段时，缺失字段沿用 [fallback]，
+         * 不会把 allowPackages、chunkSize 等策略悄悄重置成默认值。
+         */
+        fun fromJson(o: JSONObject?, fallback: BridgePolicy = BridgePolicy()): BridgePolicy {
+            if (o == null) return fallback
+            fun normalize(s: String): String = s.trim().trimEnd('.').lowercase()
+            fun strSet(key: String, old: Set<String>): Set<String> {
+                if (!o.has(key)) return old
                 val a = o.optJSONArray(key) ?: return emptySet()
                 val out = LinkedHashSet<String>()
-                for (i in 0 until a.length()) a.optString(i).takeIf { it.isNotBlank() }?.let { out.add(it.lowercase()) }
+                for (i in 0 until a.length()) {
+                    normalize(a.optString(i)).takeIf { it.isNotEmpty() }?.let { out.add(it) }
+                }
                 return out
             }
-            val pkgs = o.optJSONArray("allowPackages")?.let { a ->
-                val out = LinkedHashSet<String>()
-                for (i in 0 until a.length()) a.optString(i).takeIf { it.isNotBlank() }?.let { out.add(it) }
-                out
+            val packages = when {
+                !o.has("allowPackages") -> fallback.allowPackages
+                o.isNull("allowPackages") -> null
+                else -> {
+                    val a = o.optJSONArray("allowPackages") ?: return fallback.copy(allowPackages = emptySet())
+                    val out = LinkedHashSet<String>()
+                    for (i in 0 until a.length()) {
+                        a.optString(i).trim().takeIf { it.isNotEmpty() }?.let { out.add(it) }
+                    }
+                    out
+                }
             }
             return BridgePolicy(
-                allowPackages = pkgs?.takeIf { it.isNotEmpty() },
-                allowHosts = strSet("allowHosts"),
-                blockHosts = strSet("blockHosts"),
-                allowHttp = o.optBoolean("allowHttp", false),
-                maxResponseBytes = o.optInt("maxResponseBytes", 8 * 1024 * 1024).coerceIn(64 * 1024, 32 * 1024 * 1024),
-                timeoutMs = o.optInt("timeoutMs", 20000).coerceIn(2000, 60000),
-                maxRequestsPerMinute = o.optInt("maxRequestsPerMinute", 240).coerceIn(10, 6000),
-                chunkSize = o.optInt("chunkSize", 4096).coerceIn(256, 65536),
-                ackWindow = o.optInt("ackWindow", 4).coerceIn(1, 64)
+                allowPackages = packages,
+                allowHosts = strSet("allowHosts", fallback.allowHosts),
+                blockHosts = strSet("blockHosts", fallback.blockHosts),
+                allowHttp = if (o.has("allowHttp")) o.optBoolean("allowHttp", false) else fallback.allowHttp,
+                maxResponseBytes = o.optInt("maxResponseBytes", fallback.maxResponseBytes)
+                    .coerceIn(64 * 1024, 32 * 1024 * 1024),
+                timeoutMs = o.optInt("timeoutMs", fallback.timeoutMs).coerceIn(2000, 60000),
+                maxRequestsPerMinute = o.optInt("maxRequestsPerMinute", fallback.maxRequestsPerMinute)
+                    .coerceIn(10, 6000),
+                chunkSize = o.optInt("chunkSize", fallback.chunkSize).coerceIn(256, 65536),
+                ackWindow = o.optInt("ackWindow", fallback.ackWindow).coerceIn(1, 64)
             )
         }
     }

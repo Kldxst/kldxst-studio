@@ -59,19 +59,26 @@ class MiLogin(private val log: (String) -> Unit = {}) {
             .get()
             .build()
         val body = exec(req, "设备列表")
-        val arr = JSONObject(body).optJSONObject("data")?.optJSONArray("deviceList")
-            ?: JSONObject(body).optJSONArray("deviceList")
+        val root = JSONObject(body)
+        val data = root.optJSONObject("data")
+        val arr = data?.optJSONArray("deviceList")
+            ?: data?.optJSONArray("list")
+            ?: root.optJSONArray("deviceList")
             ?: org.json.JSONArray()
         val out = ArrayList<MiAccount.Device>()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
+            val nested = o.optJSONObject("deviceData") ?: o.optJSONObject("extra")
+            fun field(name: String): String =
+                o.optString(name).ifBlank { nested?.optString(name).orEmpty() }.trim()
+            val authkey = field("authkey").ifBlank { field("authKey") }
             out.add(
                 MiAccount.Device(
-                    did = o.optString("did"),
-                    name = o.optString("name").ifBlank { o.optString("deviceName") },
-                    mac = o.optString("mac").takeIf { it.isNotBlank() },
-                    productDevice = o.optString("productDevice").takeIf { it.isNotBlank() },
-                    authkey = o.optString("authkey").takeIf { it.isNotBlank() }
+                    did = field("did").ifBlank { field("deviceId") },
+                    name = field("name").ifBlank { field("deviceName") },
+                    mac = field("mac").ifBlank { field("macAddress") }.takeIf { it.isNotBlank() },
+                    productDevice = field("productDevice").takeIf { it.isNotBlank() },
+                    authkey = authkey.takeIf { it.isNotBlank() }
                 )
             )
         }
@@ -120,6 +127,15 @@ class MiLogin(private val log: (String) -> Unit = {}) {
     private fun step3(auth: JSONObject): String {
         val location = auth.optString("location")
         if (location.isBlank()) throw IllegalStateException("登录响应缺少 location")
+        if (!location.startsWith("https://", ignoreCase = true)) {
+            throw IllegalStateException("登录跳转不是 HTTPS，已拒绝")
+        }
+        val host = runCatching { java.net.URI(location).host?.lowercase() }.getOrNull()
+        if (host == null || !(host == "xiaomi.com" || host.endsWith(".xiaomi.com") ||
+                host == "mi.com" || host.endsWith(".mi.com"))
+        ) {
+            throw IllegalStateException("登录跳转地址不在小米域名下，已拒绝")
+        }
         val req = Request.Builder()
             .url(location)
             .header("User-Agent", UA)

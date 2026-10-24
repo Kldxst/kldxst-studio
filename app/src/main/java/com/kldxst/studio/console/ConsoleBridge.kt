@@ -1,10 +1,18 @@
 package com.kldxst.studio.console
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.webkit.JavascriptInterface
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.kldxst.studio.BuildConfig
 import com.kldxst.studio.account.MiAccount
 import com.kldxst.studio.bridge.BridgePolicy
+import com.kldxst.studio.bridge.FetchRequest
+import com.kldxst.studio.bridge.OkHttpFetcher
 import com.kldxst.studio.bt.FrameCodec
 import com.kldxst.studio.bt.MiWear
 import com.kldxst.studio.bt.ProtocolProfile
@@ -17,13 +25,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * 控制台 ⇄ 原生的唯一通道。
@@ -34,17 +41,17 @@ import java.util.concurrent.TimeUnit
 class ConsoleBridge(
     private val ctx: Context,
     private val allowedHosts: Set<String>,
-    private val token: String
+    private val token: String,
+    private val onRequestPermissions: () -> Unit = {},
+    private val onOpenExternal: (String) -> Unit = {},
+    private val onOpenNotificationSettings: () -> Unit = {},
+    private val onOpenAppSettings: () -> Unit = {}
 ) {
 
     @Volatile
     var currentOrigin: String = ""
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
 
     @Volatile
     var emit: ((String, String) -> Unit)? = null
@@ -70,6 +77,13 @@ class ConsoleBridge(
         }
     }
 
+    /**
+     * 页面脚本在 document-start 注入不可用时，用这个同步方法取回本次进程的令牌。
+     * 这里仍先校验当前页面 origin，非白名单页面拿到的是空串。
+     */
+    @JavascriptInterface
+    fun sessionToken(): String = if (originAllowed()) token else ""
+
     @JavascriptInterface
     fun ping(): String = JSONObject().put("ok", true).put("v", BuildConfig.VERSION_NAME).toString()
 
@@ -81,8 +95,35 @@ class ConsoleBridge(
                 .put("protocol", Hub.protocol.toJson())
                 .put("bridgeRunning", Hub.bridgeRunning)
                 .put("policy", Hub.policy.toJson())
+                .put("permissions", permissionStatus())
                 .put("uptimeMs", System.currentTimeMillis() - Hub.startedAt)
         )
+
+        "permissions.status" -> ok(permissionStatus())
+
+        "permissions.request" -> {
+            onRequestPermissions()
+            ok(permissionStatus().put("requested", true))
+        }
+
+        "permissions.openSettings" -> {
+            onOpenAppSettings()
+            ok(JSONObject())
+        }
+
+        /** 通知使用权是系统特殊权限，只能跳到系统的通知使用权列表 */
+        "permissions.notificationAccess" -> {
+            onOpenNotificationSettings()
+            ok(JSONObject())
+        }
+
+        "app.openExternal" -> {
+            val url = a.optString("url")
+            val scheme = runCatching { Uri.parse(url).scheme?.lowercase() }.getOrNull()
+            require(scheme == "https" || scheme == "http") { "只允许打开 http/https 链接" }
+            onOpenExternal(url)
+            ok(JSONObject())
+        }
 
         "account.status" -> {
             val c = Hub.cred
@@ -101,7 +142,7 @@ class ConsoleBridge(
             require(user.isNotBlank() && pass.isNotBlank()) { "账号和密码都要填" }
             val cred = Hub.account.login(user, pass)
             Hub.cred = cred
-            Vault.set("mi.cred", JSONObject()
+            Vault.set(Hub.KEY_CRED, JSONObject()
                 .put("userId", cred.userId)
                 .put("cUserId", cred.cUserId)
                 .put("ssecurity", cred.ssecurity)
@@ -109,8 +150,17 @@ class ConsoleBridge(
                 .put("passToken", cred.passToken)
                 .put("deviceId", cred.deviceId)
                 .toString())
-            val list = Hub.account.devices(cred)
-            ok(JSONObject().put("userId", cred.userId).put("devices", JSONObject.wrap(list.map { it.toJson() })))
+            var warning: String? = null
+            val list = runCatching { Hub.account.devices(cred) }.getOrElse { e ->
+                Hub.log.add("设备列表获取失败：${e.message}")
+                warning = "登录成功，但设备列表获取失败：${e.message}"
+                emptyList()
+            }
+            val data = JSONObject()
+                .put("userId", cred.userId)
+                .put("devices", JSONObject.wrap(list.map { it.toJson() }))
+            if (warning != null) data.put("warning", warning)
+            ok(data)
         }
 
         "account.devices" -> {
@@ -135,7 +185,7 @@ class ConsoleBridge(
 
         "account.logout" -> {
             Hub.cred = null
-            Vault.remove("mi.cred")
+            Vault.remove(Hub.KEY_CRED)
             ok(JSONObject())
         }
 
@@ -144,7 +194,7 @@ class ConsoleBridge(
         "protocol.set" -> {
             val p = ProtocolProfile.fromJson(a.optJSONObject("profile"))
             Hub.applyProtocol(p)
-            Vault.set(KEY_PROTOCOL, p.toJson().toString())
+            Vault.set(Hub.KEY_PROTOCOL, p.toJson().toString())
             ok(p.toJson())
         }
 
@@ -156,6 +206,8 @@ class ConsoleBridge(
                     .put("connected", Hub.wear.connected)
                     .put("transport", Hub.wear.transport)
                     .put("authenticated", Hub.wear.authenticated)
+                    .put("authState", Hub.wear.authState)
+                    .put("lastAuthReply", Hub.wear.lastAuthReply ?: JSONObject.NULL)
                     .put("peer", peer?.let {
                         JSONObject().put("name", it.name).put("address", it.address)
                     } ?: JSONObject.NULL)
@@ -166,8 +218,9 @@ class ConsoleBridge(
 
         "device.scan" -> {
             val ms = a.optInt("durationMs", 8000).coerceIn(3000, 20000).toLong()
-            val peers = withContext(Dispatchers.IO) { scanOnce(ms) }
-            ok(JSONObject().put("peers", JSONObject.wrap(peers.map {
+            val outcome = withContext(Dispatchers.IO) { scanOnce(ms) }
+            if (outcome.error != null) throw IllegalStateException(outcome.error)
+            ok(JSONObject().put("peers", JSONObject.wrap(outcome.peers.map {
                 JSONObject()
                     .put("name", it.name).put("address", it.address)
                     .put("rssi", it.rssi).put("xiaomi", it.xiaomi)
@@ -181,8 +234,10 @@ class ConsoleBridge(
             val transport = a.optString("transport", "spp").lowercase()
             val name = if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
             // 记住这台设备：前台服务重连时要用
-            Vault.set("device.address", address)
+            Vault.set("device.address", address.uppercase())
             Vault.set("device.transport", Hub.wear.transport)
+            // 用户主动连接即视为要保持连接；没有通知权限时服务内部会安全降级。
+            StudioService.start(ctx)
             ok(JSONObject().put("device", name).put("transport", Hub.wear.transport))
         }
 
@@ -193,6 +248,8 @@ class ConsoleBridge(
         }
 
         "device.close" -> {
+            prefs().edit().putBoolean("bridge.autoStart", false).apply()
+            StudioService.stop(ctx)
             Hub.wear.close()
             ok(JSONObject())
         }
@@ -233,15 +290,30 @@ class ConsoleBridge(
         }
 
         "bridge.start" -> {
-            ctx.getSharedPreferences("kldxst", Context.MODE_PRIVATE).edit()
-                .putBoolean("bridge.autoStart", a.optBoolean("autoStart", true)).apply()
+            prefs().edit().putBoolean("bridge.autoStart", a.optBoolean("autoStart", true)).apply()
             StudioService.start(ctx)
             ok(JSONObject())
         }
 
         "bridge.stop" -> {
+            prefs().edit().putBoolean("bridge.autoStart", false).apply()
             StudioService.stop(ctx)
             ok(JSONObject())
+        }
+
+        "notify.get" -> ok(
+            JSONObject()
+                .put("relay", prefs().getBoolean("notify.relay", true))
+                .put("ignoreOngoing", prefs().getBoolean("notify.ignoreOngoing", true))
+                .put("access", hasNotificationAccess())
+        )
+
+        "notify.set" -> {
+            prefs().edit()
+                .putBoolean("notify.relay", a.optBoolean("relay", true))
+                .putBoolean("notify.ignoreOngoing", a.optBoolean("ignoreOngoing", true))
+                .apply()
+            ok(JSONObject().put("access", hasNotificationAccess()))
         }
 
         "bridge.status" -> ok(Hub.bridge.stats().put("running", Hub.bridgeRunning))
@@ -252,9 +324,9 @@ class ConsoleBridge(
         }
 
         "bridge.policy" -> {
-            val p = BridgePolicy.fromJson(a.optJSONObject("policy"))
+            val p = BridgePolicy.fromJson(a.optJSONObject("policy"), Hub.policy)
             Hub.applyPolicy(p)
-            Vault.set(KEY_POLICY, p.toJson().toString())
+            Vault.set(Hub.KEY_POLICY, p.toJson().toString())
             ok(JSONObject().put("policy", p.toJson()))
         }
 
@@ -284,45 +356,53 @@ class ConsoleBridge(
 
     /* ------------------------------------------------------------------ */
 
-    private fun scanOnce(timeoutMs: Long): List<MiWear.Peer> {
-        val queue = LinkedBlockingQueue<List<MiWear.Peer>>()
-        Hub.wear.scan({ list -> queue.offer(list) }, { err -> Hub.log.add("扫描失败：$err") }, timeoutMs)
-        return queue.poll(timeoutMs, TimeUnit.MILLISECONDS) ?: emptyList()
+    private data class ScanOutcome(val peers: List<MiWear.Peer>, val error: String? = null)
+
+    private fun scanOnce(timeoutMs: Long): ScanOutcome {
+        val queue = LinkedBlockingQueue<ScanOutcome>()
+        val error = AtomicReference<String?>(null)
+        Hub.wear.scan({ _ -> }, { err ->
+            error.set(err)
+            Hub.log.add("扫描失败：$err")
+        }, timeoutMs) { peers ->
+            val failure = error.get()
+            queue.offer(ScanOutcome(if (failure == null) peers else emptyList(), failure))
+        }
+        return queue.poll(timeoutMs + 3_000, TimeUnit.MILLISECONDS)
+            ?: ScanOutcome(emptyList(), "扫描超时，请关闭其他蓝牙应用后重试")
     }
 
     private fun inspectRemote(url: String, expectSha: String): JSONObject {
-        http.newCall(Request.Builder().url(url).header("User-Agent", "KldxstStudio/1.0").build())
-            .execute().use { resp ->
-                require(resp.isSuccessful) { "下载失败：HTTP ${resp.code}" }
-                val body = resp.body ?: throw IllegalStateException("响应为空")
-                val name = url.substringAfterLast('/').ifBlank { "download.rpk" }
-                val dir = File(ctx.cacheDir, "rpk").apply { mkdirs() }
-                val target = File(dir, name.replace(Regex("[^A-Za-z0-9._-]"), "_"))
-                val digest = MessageDigest.getInstance("SHA-256")
-                body.byteStream().use { input ->
-                    target.outputStream().use { out ->
-                        val buf = ByteArray(64 * 1024)
-                        var total = 0L
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n <= 0) break
-                            total += n
-                            require(total <= MAX_RPK_BYTES) { "资源超过 64MB 上限" }
-                            digest.update(buf, 0, n)
-                            out.write(buf, 0, n)
-                        }
-                    }
-                }
-                val sha = digest.digest().joinToString("") { "%02x".format(it) }
-                val json = Rpk.inspect(target).toJson()
-                json.put("path", target.absolutePath)
-                json.put("shaMatch", if (expectSha.isBlank()) JSONObject.NULL else sha == expectSha)
-                if (expectSha.isNotBlank() && sha != expectSha) {
-                    json.put("error", "哈希不匹配：期望 ${expectSha.take(16)}…，实际 ${sha.take(16)}…")
-                    target.delete()
-                }
-                return json
-            }
+        require(expectSha.isBlank() || expectSha.matches(Regex("[0-9a-fA-F]{64}"))) {
+            "期望 SHA-256 应为 64 位十六进制"
+        }
+        // 与网桥共用出口守卫和 DNS 钉扎，避免用户填写的 URL 借重定向访问内网。
+        val policy = BridgePolicy(
+            maxResponseBytes = MAX_RPK_BYTES.toInt(),
+            timeoutMs = 60_000,
+            allowHttp = false
+        )
+        val result = OkHttpFetcher { policy }.fetch(
+            FetchRequest(url = url, method = "GET", timeoutMs = 60_000)
+        )
+        require(result.error == null) { result.error ?: "下载失败" }
+        require(result.status in 200..299) { "下载失败：HTTP ${result.status}，请填写最终下载地址" }
+        require(!result.truncated) { "资源超过 64MB 上限" }
+
+        val name = url.substringAfterLast('/').ifBlank { "download.rpk" }
+        val dir = File(ctx.cacheDir, "rpk").apply { mkdirs() }
+        val target = File(dir, name.replace(Regex("[^A-Za-z0-9._-]"), "_"))
+        target.writeBytes(result.body)
+        val sha = MessageDigest.getInstance("SHA-256").digest(result.body)
+            .joinToString("") { "%02x".format(it) }
+        val json = Rpk.inspect(target).toJson()
+        json.put("path", target.absolutePath)
+        json.put("shaMatch", if (expectSha.isBlank()) JSONObject.NULL else sha.equals(expectSha, true))
+        if (expectSha.isNotBlank() && !sha.equals(expectSha, true)) {
+            json.put("error", "哈希不匹配：期望 ${expectSha.take(16)}…，实际 ${sha.take(16)}…")
+            target.delete()
+        }
+        return json
     }
 
     private fun keyOf(a: JSONObject): String {
@@ -331,10 +411,42 @@ class ConsoleBridge(
         return k
     }
 
+    private fun permissionStatus(): JSONObject {
+        val scanGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasPermission(Manifest.permission.BLUETOOTH_SCAN)
+        } else {
+            hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        val connectGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            true
+        }
+        val notificationGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            hasPermission(Manifest.permission.POST_NOTIFICATIONS)
+        return JSONObject()
+            .put("bluetoothScan", scanGranted)
+            .put("bluetoothConnect", connectGranted)
+            .put("notifications", notificationGranted)
+            .put("notificationAccess", hasNotificationAccess())
+            .put("bluetoothAvailable", Hub.wear.available())
+    }
+
+    private fun hasPermission(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasNotificationAccess(): Boolean =
+        NotificationManagerCompat.getEnabledListenerPackages(ctx).contains(ctx.packageName)
+
+    private fun prefs() = ctx.getSharedPreferences("kldxst", Context.MODE_PRIVATE)
+
     private fun originAllowed(): Boolean {
         val o = currentOrigin
-        if (o.isEmpty()) return false
-        val host = o.substringAfter("://", "").substringBefore("/").substringBefore(":")
+        if (o.isBlank()) return false
+        val uri = runCatching { Uri.parse(o) }.getOrNull() ?: return false
+        if (!uri.scheme.equals("https", ignoreCase = true)) return false
+        if (uri.port != -1 && uri.port != 443) return false
+        val host = uri.host?.lowercase() ?: return false
         return allowedHosts.contains(host)
     }
 
@@ -348,8 +460,6 @@ class ConsoleBridge(
     }
 
     companion object {
-        private const val KEY_POLICY = "bridge.policy"
-        private const val KEY_PROTOCOL = "protocol.profile"
         private const val MAX_RPK_BYTES = 64L * 1024 * 1024
     }
 }

@@ -91,6 +91,7 @@
 
 <main>
   <section class="view active" id="view-device">
+    <div class="banner" id="permBanner" hidden></div>
     <div class="card">
       <h2>小米账号<em>登录后自动取 authkey</em></h2>
       <p class="hint">登录小米账号，从云端取回设备与 authkey。凭据只存本机。</p>
@@ -195,15 +196,38 @@
       <p class="hint">帧头、长度字节序与命令消息号。改完立即生效，并写进本机存储。</p>
       <div class="grid2">
         <label class="field"><span>magic（十进制）</span><input id="pMagic" type="number" min="0" max="255"></label>
+        <label class="field"><span>类型字段偏移</span><input id="pTypeOffset" type="number" min="1" max="15"></label>
+        <label class="field"><span>长度字段偏移</span><input id="pLengthOffset" type="number" min="1" max="15"></label>
         <label class="field"><span>长度字节数</span><input id="pLen" type="number" min="1" max="4"></label>
         <label class="field"><span>auth 帧类型</span><input id="pAuth" type="number" min="0" max="255"></label>
-        <label class="field"><span>头部字节</span><input id="pHeader" type="number" min="2" max="8"></label>
+        <label class="field"><span>头部字节</span><input id="pHeader" type="number" min="2" max="64"></label>
+        <label class="field"><span>最大帧</span><input id="pMaxFrame" type="number" min="64" max="65535"></label>
+        <label class="field"><span>nonce 字节</span><input id="pNonce" type="number" min="8" max="32"></label>
       </div>
-      <label class="field"><span>长度字节序</span>
-        <select id="pEndian"><option value="1">小端</option><option value="0">大端</option></select></label>
+      <div class="grid2">
+        <label class="field"><span>长度字节序</span>
+          <select id="pEndian"><option value="1">小端</option><option value="0">大端</option></select></label>
+        <label class="field"><span>auth 模式</span>
+          <select id="pAuthMode">
+            <option value="hmac-sha256">HMAC-SHA256</option>
+            <option value="aes-ecb-128">AES-128-ECB</option>
+            <option value="aes-ecb-256">AES-256-ECB</option>
+            <option value="none">无认证</option>
+          </select></label>
+      </div>
       <label class="field"><span>命令消息号（JSON，操作名 → 类型字节）</span>
         <textarea id="pOps" rows="4" placeholder='{"notify":16,"applist":32,"install":33}'></textarea></label>
       <button class="block primary" id="btnProtocol">保存协议</button>
+    </div>
+
+    <div class="card">
+      <h2>通知转发</h2>
+      <p class="hint">授权后，手机通知会转发到手环；未连接或未校准通知命令时不发送。</p>
+      <div class="kv"><span>通知使用权</span><b id="notifyAccess">—</b></div>
+      <div class="row" style="margin-top:12px">
+        <button class="grow ghost" id="btnNotifyAccess">去授权</button>
+        <button class="ghost" id="btnNotifyToggle">关闭转发</button>
+      </div>
     </div>
 
     <div class="card">
@@ -261,7 +285,10 @@
   'use strict';
   var NATIVE = typeof window.Kldxst !== 'undefined';
   var TOKEN = window.__kldxstToken || '';
-  var seq = 0, pending = {}, transport = 'spp', peers = [];
+  if (!TOKEN && NATIVE) {
+    try { TOKEN = window.Kldxst.sessionToken() || ''; } catch (e) { TOKEN = ''; }
+  }
+  var seq = 0, pending = {}, transport = 'spp', peers = [], policyState = {};
 
   window.KldxstOnResult = function (id, json) {
     var cb = pending[id]; if (!cb) return; delete pending[id];
@@ -271,6 +298,10 @@
 
   function call(method, args) {
     if (!NATIVE) return Promise.resolve(mock(method));
+    if (!TOKEN) {
+      try { TOKEN = window.Kldxst.sessionToken() || ''; } catch (e) {}
+    }
+    if (!TOKEN) return Promise.resolve({ ok: false, error: 'E_TOKEN', message: '会话未就绪，请关闭页面后重新打开应用' });
     return new Promise(function (resolve) {
       var id = 'r' + (++seq); pending[id] = resolve;
       try { window.Kldxst.call(id, method, JSON.stringify(Object.assign({}, args || {}, { t: TOKEN }))); }
@@ -287,6 +318,8 @@
       'device.frames': { ok: true, data: { frames: [] } },
       'secure.get': { ok: true, data: { value: null } },
       'bridge.status': { ok: true, data: { running: false, sessions: [], requests: 0, bytes: 0, policy: {} } },
+      'permissions.status': { ok: true, data: { bluetoothScan: false, bluetoothConnect: false, notifications: false, notificationAccess: false } },
+      'notify.get': { ok: true, data: { relay: false, access: false } },
       'bridge.logs': { ok: true, data: { lines: ['预览模式：没有原生通道'] } },
       'bridge.selftest': { ok: true, data: { ok: true, pass: 6, fail: 0, steps: [{ name: '预览', ok: true }] } }
     };
@@ -301,6 +334,31 @@
   function tag(ok, t) { return '<span class="tag ' + (ok ? 'ok' : 'no') + '">' + esc(t) + '</span>'; }
   function kv(k, v) { return '<div class="kv"><span>' + esc(k) + '</span><b>' + v + '</b></div>'; }
 
+  function renderPermissions(p) {
+    if (!p) return;
+    var missing = [];
+    if (!p.bluetoothScan) missing.push('附近设备（扫描）');
+    if (!p.bluetoothConnect) missing.push('附近设备（连接）');
+    var b = $('permBanner');
+    if (!missing.length) { b.hidden = true; return; }
+    b.hidden = false;
+    b.innerHTML = '缺少' + esc(missing.join('、')) + '权限。' +
+      '<button class="mini" id="btnPermGrant" style="margin-left:8px">授权</button>' +
+      '<button class="mini" id="btnPermSettings" style="margin-left:6px">系统设置</button>';
+  }
+  $('permBanner').addEventListener('click', async function (ev) {
+    if (ev.target.id === 'btnPermSettings') {
+      await call('permissions.openSettings');
+      return;
+    }
+    if (ev.target.id !== 'btnPermGrant') return;
+    await call('permissions.request');
+    setTimeout(async function () {
+      var r = await call('permissions.status');
+      if (r.ok) renderPermissions(r.data);
+    }, 800);
+  });
+
   /* 小米账号 */
   async function refreshAccount() {
     var r = await call('account.status');
@@ -308,9 +366,11 @@
     var d = r.data;
     $('accLogin').style.display = d.loggedIn ? 'none' : 'block';
     $('accInfo').innerHTML = d.loggedIn
-      ? kv('账号', 'ID ' + esc(d.userId || '—')) + kv('authkey', d.hasAuthkey ? tag(true, '已取到') : tag(false, '未取到'))
+      ? kv('账号', 'ID ' + esc(d.userId || '—')) + kv('authkey', d.hasAuthkey ? tag(true, '已取到') : tag(false, '未取到')) +
+        '<button class="mini" id="btnLogout" style="margin-top:8px">退出登录</button>'
       : '<div class="empty">未登录</div>';
     if (d.loggedIn) loadDevices();
+    else $('accDevices').innerHTML = '';
   }
 
   async function loadDevices() {
@@ -323,6 +383,15 @@
         ' <button class="mini" data-did="' + esc(d.did) + '">使用</button></b></div>';
     }).join('') : '<div class="empty">云端没有设备</div>';
   }
+
+  $('accInfo').addEventListener('click', async function (ev) {
+    if (ev.target.id !== 'btnLogout') return;
+    var b = ev.target; b.disabled = true; b.textContent = '退出中…';
+    var r = await call('account.logout');
+    if (!r.ok) { toast(r.message || '退出失败'); b.disabled = false; b.textContent = '退出登录'; return; }
+    toast('已退出登录');
+    refreshAccount();
+  });
 
   $('accDevices').addEventListener('click', async function (ev) {
     var b = ev.target.closest('button[data-did]'); if (!b) return;
@@ -343,7 +412,7 @@
     b.disabled = false; b.textContent = '登录';
     if (!r.ok) { toast(r.message || '登录失败'); return; }
     $('accPass').value = '';
-    toast('登录成功');
+    toast(r.data && r.data.warning ? r.data.warning : '登录成功');
     refreshAccount();
   };
 
@@ -418,7 +487,9 @@
       var html = kv('设备', esc(d.peer && d.peer.name || '手环'))
         + kv('地址', esc(d.peer && d.peer.address || ''))
         + kv('链路', d.transport === 'ble' ? 'BLE' : 'SPP')
-        + kv('authkey', d.authenticated ? tag(true, '已握手') : tag(false, '未握手'))
+        + kv('authkey', d.authState === 'replied'
+          ? '<span class="tag ok">已收到回包</span> <span class="tag">待真机确认</span>'
+          : d.authState === 'sending' ? tag(false, '发送中') : tag(false, '未握手'))
         + kv('命令', ops.length ? esc(ops.join(', ')) : tag(false, '未校准'));
       $('devState').innerHTML = html;
       setConn(d.transport === 'ble' ? 'BLE 已连' : 'SPP 已连', 'on');
@@ -441,7 +512,7 @@
     if (!/^[0-9a-fA-F]{32}$/.test(key)) { toast('authkey 应为 32 位十六进制'); return; }
     var r = await call('device.auth', { authkey: key });
     if (!r.ok) { toast(r.message || '握手失败'); return; }
-    toast(r.data.replied ? '收到回包' : '已发出，未收到回包');
+    toast(r.data.replied ? '收到回包，结果需真机确认' : '已发出，未收到回包');
     refreshAccount(); refreshState(); refreshFrames();
   };
 
@@ -480,7 +551,11 @@
   $('gameList').addEventListener('click', async function (ev) {
     var b = ev.target.closest('button[data-act]'); if (!b) return;
     var g = games[Number(b.dataset.i)]; if (!g) return;
-    if (b.dataset.act === 'buy') { window.open(g.buy, '_blank'); return; }
+    if (b.dataset.act === 'buy') {
+      var open = await call('app.openExternal', { url: g.buy });
+      if (!open.ok) toast(open.message || '无法打开购买页');
+      return;
+    }
     var op = b.dataset.act === 'launch' ? 'applaunch' : b.dataset.act === 'list' ? 'applist' : 'appuninstall';
     var r = await call('op.run', { op: op, payloadHex: '' });
     if (!r.ok) { toast(r.message || '执行失败'); return; }
@@ -509,10 +584,11 @@
     if (d.policy) fillPolicy(d.policy);
   }
   function fillPolicy(p) {
-    if (p.allowHosts && p.allowHosts.length) $('polAllow').value = p.allowHosts.join(',');
-    if (p.blockHosts && p.blockHosts.length) $('polBlock').value = p.blockHosts.join(',');
-    $('polMax').value = Math.round((p.maxResponseBytes || 8388608) / 1048576);
-    $('polTimeout').value = p.timeoutMs || 20000;
+    policyState = Object.assign({}, p || {});
+    $('polAllow').value = (p && p.allowHosts || []).join(',');
+    $('polBlock').value = (p && p.blockHosts || []).join(',');
+    $('polMax').value = Math.round((p && p.maxResponseBytes || 8388608) / 1048576);
+    $('polTimeout').value = (p && p.timeoutMs) || 20000;
   }
   $('btnBridgeOn').onclick = async function () { var r = await call('bridge.start', { autoStart: true }); toast(r.ok ? '已启动' : (r.message || '失败')); setTimeout(refreshBridge, 600); };
   $('btnBridgeOff').onclick = async function () { await call('bridge.stop'); toast('已停止'); setTimeout(refreshBridge, 400); };
@@ -527,33 +603,47 @@
   };
   $('btnPolicy').onclick = async function () {
     function list(id) { return $(id).value.split(',').map(function (s) { return s.trim(); }).filter(Boolean); }
-    var r = await call('bridge.policy', { policy: {
+    var next = Object.assign({}, policyState, {
       allowHosts: list('polAllow'), blockHosts: list('polBlock'), allowHttp: false,
       maxResponseBytes: (Number($('polMax').value) || 8) * 1048576,
       timeoutMs: Number($('polTimeout').value) || 20000
-    }});
+    });
+    var r = await call('bridge.policy', { policy: next });
+    if (r.ok && r.data && r.data.policy) fillPolicy(r.data.policy);
     toast(r.ok ? '已保存' : (r.message || '保存失败'));
   };
 
   function fillProtocol(p) {
+    p = p || {};
     $('pMagic').value = p.magic != null ? p.magic : 165;
+    $('pTypeOffset').value = p.typeOffset || 1;
+    $('pLengthOffset').value = p.lengthOffset || 2;
     $('pLen').value = p.lengthBytes || 2;
     $('pAuth').value = p.authType != null ? p.authType : 1;
     $('pHeader').value = p.headerBytes || 4;
+    $('pMaxFrame').value = p.maxFrame || 8192;
+    $('pNonce').value = p.authNonceBytes || 16;
     $('pEndian').value = p.littleEndianLength === false ? '0' : '1';
+    $('pAuthMode').value = p.authMode || 'hmac-sha256';
     $('pOps').value = JSON.stringify(p.ops || {});
   }
   $('btnProtocol').onclick = async function () {
     var ops = {};
     try { ops = JSON.parse($('pOps').value || '{}'); } catch (e) { toast('命令消息号不是合法 JSON'); return; }
     var r = await call('protocol.set', { profile: {
-      magic: Number($('pMagic').value) || 165,
-      lengthBytes: Number($('pLen').value) || 2,
-      authType: Number($('pAuth').value) || 1,
-      headerBytes: Number($('pHeader').value) || 4,
+      magic: Number($('pMagic').value),
+      typeOffset: Number($('pTypeOffset').value),
+      lengthOffset: Number($('pLengthOffset').value),
+      lengthBytes: Number($('pLen').value),
+      authType: Number($('pAuth').value),
+      headerBytes: Number($('pHeader').value),
+      maxFrame: Number($('pMaxFrame').value),
+      authNonceBytes: Number($('pNonce').value),
+      authMode: $('pAuthMode').value,
       littleEndianLength: $('pEndian').value === '1',
       ops: ops
     }});
+    if (r.ok && r.data) fillProtocol(r.data);
     toast(r.ok ? '协议已保存' : (r.message || '保存失败'));
     if (r.ok) refreshState();
   };
@@ -585,6 +675,26 @@
     } catch (e) { out.innerHTML = '<div class="empty">网络错误</div>'; }
   };
 
+  var notifyRelay = true;
+  async function refreshNotify() {
+    var r = await call('notify.get');
+    if (!r.ok) return;
+    notifyRelay = r.data.relay !== false;
+    $('notifyAccess').innerHTML = r.data.access ? tag(true, '已授权') : tag(false, '未授权');
+    $('btnNotifyToggle').textContent = notifyRelay ? '关闭转发' : '开启转发';
+  }
+  $('btnNotifyAccess').onclick = async function () {
+    var r = await call('permissions.notificationAccess');
+    if (!r.ok) toast(r.message || '无法打开系统设置');
+    else toast('授权后返回应用');
+  };
+  $('btnNotifyToggle').onclick = async function () {
+    var r = await call('notify.set', { relay: !notifyRelay });
+    if (!r.ok) { toast(r.message || '保存失败'); return; }
+    toast(!notifyRelay ? '已开启转发' : '已关闭转发');
+    refreshNotify();
+  };
+
   $('btnReload').onclick = function () { location.reload(); };
   $('btnDiag').onclick = async function () {
     var report = {
@@ -609,6 +719,7 @@
       $('aboutApp').textContent = hello.data.app.versionName + ' (' + hello.data.app.versionCode + ')';
       fillProtocol(hello.data.protocol || {});
       if (hello.data.policy) fillPolicy(hello.data.policy);
+      renderPermissions(hello.data.permissions);
       setConn(hello.data.bridgeRunning ? '网桥就绪' : '未连接', hello.data.bridgeRunning ? 'on' : '');
     } else {
       $('aboutApp').textContent = NATIVE ? '读取失败' : '浏览器预览';
@@ -622,7 +733,7 @@
     }
     var saved = await call('secure.get', { key: 'authkey' });
     if (saved.ok && saved.data.value) $('authkey').value = saved.data.value;
-    refreshState(); refreshFrames();
+    refreshState(); refreshFrames(); refreshNotify();
     var tab = (location.hash || '').replace('#', '');
     if (tab && document.querySelector('nav button[data-tab="' + tab + '"]')) document.querySelector('nav button[data-tab="' + tab + '"]').click();
   })();

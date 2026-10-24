@@ -148,10 +148,29 @@ class BridgeEngineTest {
     fun `SSRF 守卫拦下回环与链路本地`() {
         assertNotNull(SsrfGuard.check("https://127.0.0.1/", BridgePolicy()))
         assertNotNull(SsrfGuard.check("https://[::1]/", BridgePolicy()))
+        assertNotNull(SsrfGuard.check("https://[fc00::1]/", BridgePolicy()))
         assertNotNull(SsrfGuard.check("https://169.254.169.254/", BridgePolicy()))
+        assertNotNull(SsrfGuard.check("https://100.64.0.1/", BridgePolicy()))
         assertNotNull(SsrfGuard.check("http://example.com/", BridgePolicy(allowHttp = false)))
         // 带 userinfo 的伪装地址必须拒
         assertNotNull(SsrfGuard.check("https://example.com@127.0.0.1/", BridgePolicy()))
+        // 白名单外的直连 IP 也不能绕过
+        assertNotNull(SsrfGuard.check("https://8.8.8.8/", BridgePolicy(allowHosts = setOf("example.com"))))
+    }
+
+    @Test
+    fun `策略局部更新不会丢掉未提交字段`() {
+        val old = BridgePolicy(
+            allowPackages = setOf("com.kldxst.demo"),
+            allowHosts = setOf("old.example"),
+            chunkSize = 1024,
+            ackWindow = 2
+        )
+        val next = BridgePolicy.fromJson(JSONObject().put("allowHosts", org.json.JSONArray().put("new.example")), old)
+        assertEquals(setOf("com.kldxst.demo"), next.allowPackages)
+        assertEquals(setOf("new.example"), next.allowHosts)
+        assertEquals(1024, next.chunkSize)
+        assertEquals(2, next.ackWindow)
     }
 
     @Test

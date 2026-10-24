@@ -27,12 +27,17 @@ object Vault {
     private lateinit var prefs: SharedPreferences
 
     fun init(ctx: Context) {
-        prefs = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        // 首次触发生成密钥，避免第一次写入时才失败
-        runCatching { secretKey() }
+        if (::prefs.isInitialized) return
+        synchronized(this) {
+            if (::prefs.isInitialized) return
+            prefs = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            // 首次触发生成密钥，避免第一次写入时才失败
+            runCatching { secretKey() }
+        }
     }
 
     fun get(key: String): String? {
+        check(::prefs.isInitialized) { "Vault 尚未初始化" }
         val stored = prefs.getString(key, null) ?: return null
         return runCatching {
             val parts = stored.split(":")
@@ -46,6 +51,7 @@ object Vault {
     }
 
     fun set(key: String, value: String) {
+        check(::prefs.isInitialized) { "Vault 尚未初始化" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
         val ct = cipher.doFinal(value.toByteArray(Charsets.UTF_8))

@@ -13,8 +13,9 @@ class StudioApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        Hub.init(this)
+        // Vault 必须在 Hub 恢复账号/协议/策略之前完成初始化。
         Vault.init(this)
+        Hub.init(this)
         createChannel()
     }
 

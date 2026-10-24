@@ -22,6 +22,11 @@ import java.net.URI
  */
 object SsrfGuard {
 
+    data class Validated(
+        val denied: String? = null,
+        val addresses: List<InetAddress> = emptyList()
+    )
+
     private val BLOCKED_HOST_SUFFIX = listOf(
         ".local", ".internal", ".localhost", ".home.arpa", ".lan", ".intranet"
     )
@@ -31,82 +36,96 @@ object SsrfGuard {
     )
 
     /** 返回 null 表示放行，否则返回可展示的拒绝原因 */
-    fun check(url: String, policy: BridgePolicy): String? {
+    fun check(url: String, policy: BridgePolicy): String? = validate(url, policy).denied
+
+    /**
+     * 一次完成「策略校验 + DNS 解析」并返回解析结果。调用方必须把 [Validated.addresses]
+     * 直接交给 OkHttp 的 Dns，不能再次解析，否则校验与连接之间仍有 rebinding 窗口。
+     */
+    fun validate(url: String, policy: BridgePolicy): Validated {
         val uri = try {
             URI(url)
         } catch (e: Exception) {
-            return "URL 格式无效"
+            return Validated("URL 格式无效")
         }
-        val scheme = uri.scheme?.lowercase() ?: return "URL 缺少协议"
-        if (scheme != "https" && scheme != "http") return "只允许 http/https"
-        if (scheme == "http" && !policy.allowHttp) return "策略禁止明文 http"
+        val scheme = uri.scheme?.lowercase() ?: return Validated("URL 缺少协议")
+        if (scheme != "https" && scheme != "http") return Validated("只允许 http/https")
+        if (scheme == "http" && !policy.allowHttp) return Validated("策略禁止明文 http")
 
-        if (!uri.userInfo.isNullOrEmpty()) return "URL 不得包含用户信息"
+        if (!uri.userInfo.isNullOrEmpty()) return Validated("URL 不得包含用户信息")
 
-        val host = uri.host?.lowercase() ?: return "URL 缺少主机名"
+        var host = uri.host?.lowercase() ?: return Validated("URL 缺少主机名")
+        if (host.startsWith("[") && host.endsWith("]")) host = host.substring(1, host.length - 1)
+        host = host.trimEnd('.')
+        if (host.isBlank()) return Validated("URL 缺少主机名")
         val port = if (uri.port == -1) (if (scheme == "https") 443 else 80) else uri.port
         val allowedPort = if (scheme == "https") 443 else 80
-        if (port != allowedPort) return "端口 $port 不被允许"
+        if (port != allowedPort) return Validated("端口 $port 不被允许")
 
-        if (BLOCKED_HOST_EXACT.contains(host)) return "主机被禁止：$host"
-        if (BLOCKED_HOST_SUFFIX.any { host.endsWith(it) }) return "主机被禁止：$host"
-        if (policy.blockHosts.any { host == it || host.endsWith(".$it") }) return "主机在黑名单：$host"
+        if (BLOCKED_HOST_EXACT.contains(host)) return Validated("主机被禁止：$host")
+        if (BLOCKED_HOST_SUFFIX.any { host.endsWith(it) }) return Validated("主机被禁止：$host")
+        if (policy.blockHosts.any { host == it || host.endsWith(".$it") }) {
+            return Validated("主机在黑名单：$host")
+        }
         if (policy.allowHosts.isNotEmpty() && policy.allowHosts.none { host == it || host.endsWith(".$it") }) {
-            return "主机不在白名单：$host"
+            return Validated("主机不在白名单：$host")
         }
 
-        // 字面量 IP 直接判段；域名则解析后逐地址判
-        val literal = parseIpv4(host)
-        if (literal != null) {
-            if (isPrivate(literal)) return "禁止访问内网地址"
-            return null
-        }
         val addrs = try {
-            InetAddress.getAllByName(host)
+            // getAllByName 同时处理 IPv4、IPv6 和域名。
+            InetAddress.getAllByName(host).toList()
         } catch (e: Exception) {
-            return "域名解析失败"
+            return Validated("域名解析失败")
         }
-        if (addrs.isEmpty()) return "域名无解析结果"
+        if (addrs.isEmpty()) return Validated("域名无解析结果")
         for (a in addrs) {
-            if (a.isLoopbackAddress || a.isLinkLocalAddress || a.isSiteLocalAddress ||
-                a.isAnyLocalAddress || a.isMulticastAddress || isPrivate(a.address)
-            ) {
-                return "域名指向内网地址：${a.hostAddress}"
-            }
+            if (isBlockedAddress(a)) return Validated("禁止访问内网地址：${a.hostAddress}")
         }
-        return null
+        return Validated(addresses = addrs)
     }
 
-    /** 解析结果缓存：给 OkHttp 的 Dns 用，把「校验过的地址」直接钉死，消除 rebinding 窗口 */
+    /** 兼容旧调用方：仅校验不返回解析结果。 */
     fun resolvePinned(host: String): List<InetAddress> = InetAddress.getAllByName(host).toList()
 
-    private fun parseIpv4(host: String): ByteArray? {
-        val parts = host.split('.')
-        if (parts.size != 4) return null
-        val out = ByteArray(4)
-        for (i in 0 until 4) {
-            val v = parts[i].toIntOrNull() ?: return null
-            if (v < 0 || v > 255) return null
-            out[i] = v.toByte()
+    private fun isBlockedAddress(a: InetAddress): Boolean {
+        if (a.isLoopbackAddress || a.isLinkLocalAddress || a.isSiteLocalAddress ||
+            a.isAnyLocalAddress || a.isMulticastAddress
+        ) {
+            return true
         }
-        return out
+        val b = a.address
+        if (b.size == 4) return isPrivateV4(b)
+        if (b.size != 16) return true
+        val first = b[0].toInt() and 0xFF
+        val second = b[1].toInt() and 0xFF
+        // ULA fc00::/7
+        if ((first and 0xFE) == 0xFC) return true
+        // IPv4-mapped ::ffff:a.b.c.d
+        val mapped = (0..9).all { b[it].toInt() == 0 } &&
+            (b[10].toInt() and 0xFF) == 0xFF && (b[11].toInt() and 0xFF) == 0xFF
+        if (mapped) return isPrivateV4(b.copyOfRange(12, 16))
+        // IPv6 中保留的站点本地 fec0::/10
+        if (first == 0xFE && (second and 0xC0) == 0xC0) return true
+        return false
     }
 
-    private fun isPrivate(b: ByteArray): Boolean {
-        if (b.size != 4) return false
+    private fun isPrivateV4(b: ByteArray): Boolean {
         val a = b[0].toInt() and 0xFF
         val c = b[1].toInt() and 0xFF
         val d = b[2].toInt() and 0xFF
         return when {
+            a == 0 -> true
             a == 10 -> true
             a == 127 -> true
-            a == 0 -> true
             a == 169 && c == 254 -> true          // 链路本地
             a == 172 && c in 16..31 -> true
             a == 192 && c == 168 -> true
             a == 100 && c in 64..127 -> true      // CGNAT
-            a == 192 && c == 0 && d == 0 -> true
-            a >= 224 -> true                      // 组播/保留
+            a == 192 && c == 0 && (d == 0 || d == 2) -> true // IETF 协议分配 / TEST-NET-1
+            a == 198 && c in 18..19 -> true       // 基准测试
+            a == 198 && c == 51 && d == 100 -> true
+            a == 203 && c == 0 && d == 113 -> true
+            a >= 224 -> true                      // 组播/保留/广播
             else -> false
         }
     }

@@ -188,13 +188,14 @@ class BridgeEngine(
             .put("statusText", result.statusText)
             .put("headers", headersJson)
             .put("raw", rawWanted)
+            .put("truncated", result.truncated)
         if (result.error != null) resp.put("error", result.error)
 
         if (!wantChunk) {
             val (encoding, wire) = encodeSingle(payload, neg, rawWanted)
-            if (wire.length > BridgeCaps.MAX_UNCHUNKED_WIRE_LEN && neg.chunked) {
-                // 协商了分片却走到这里（极端边界）：直接拒绝，避免把大包塞进单帧
-                s.reply(errorResponse(id, "响应体过大且无法分片").also { log("单帧超限，已拒绝") })
+            if (wire.length > BridgeCaps.MAX_UNCHUNKED_WIRE_LEN) {
+                // 未协商分片或边界情况：绝不能用一条蓝牙帧硬塞大响应。
+                s.reply(errorResponse(id, "响应体过大，对端未协商分片").also { log("单帧超限，已拒绝") })
                 return
             }
             resp.put("body", wire)

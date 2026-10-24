@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -16,8 +17,11 @@ import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.kldxst.studio.console.ConsoleBridge
 import com.kldxst.studio.core.Hub
+import com.kldxst.studio.service.StudioService
 import org.json.JSONObject
 import java.security.SecureRandom
 
@@ -36,15 +40,49 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bridge: ConsoleBridge
     private val token: String = randomToken()
 
-    private val notifPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* 拒绝也能用，只是没有常驻通知 */ }
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val denied = result.filterValues { !it }.keys
+            if (denied.isNotEmpty()) {
+                Hub.log.add("权限未授予：${denied.joinToString()}")
+            }
+            // 权限对话框关闭后再决定是否拉起前台服务，避免 Android 14 拒绝无权限的 connectedDevice 服务。
+            StudioService.startIfEnabled(this)
+        }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
-        val hosts = BuildConfig.CONSOLE_HOSTS.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-        bridge = ConsoleBridge(this, hosts, token)
+        val hosts = BuildConfig.CONSOLE_HOSTS.split(",").map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }.toSet()
+        bridge = ConsoleBridge(
+            this,
+            hosts,
+            token,
+            onRequestPermissions = { runOnUiThread { requestAppPermissions() } },
+            onOpenExternal = { url -> runOnUiThread { openExternal(url) } },
+            onOpenNotificationSettings = {
+                runOnUiThread {
+                    runCatching {
+                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    }
+                }
+            },
+            onOpenAppSettings = {
+                runOnUiThread {
+                    runCatching {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:$packageName")
+                            )
+                        )
+                    }
+                }
+            }
+        )
         bridge.emit = { id, payload ->
             web.post {
                 val js = "window.KldxstOnResult&&window.KldxstOnResult(" +
@@ -64,15 +102,28 @@ class MainActivity : AppCompatActivity() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.mediaPlaybackRequiresUserGesture = true
+            settings.saveFormData = false
+            settings.savePassword = false
             settings.userAgentString = settings.userAgentString + " KldxstStudio/${BuildConfig.VERSION_NAME}"
             addJavascriptInterface(bridge, "Kldxst")
             webViewClient = Client()
         }
-        setContentView(web)
 
-        askNotificationPermission()
-        // 网桥随应用启动，不再让用户手动开
-        com.kldxst.studio.service.StudioService.start(this)
+        // 页面脚本一执行就需要令牌。onPageFinished 注入太晚，因此优先使用
+        // WebView 的 document-start 能力；不支持时页面会通过 Kldxst.token() 取。
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            val script = "window.__kldxstToken=${JSONObject.quote(token)};"
+            runCatching {
+                WebViewCompat.addDocumentStartJavaScript(
+                    web,
+                    script,
+                    setOf(BuildConfig.CONSOLE_ORIGIN, BuildConfig.ACTIVE_ORIGIN)
+                )
+            }.onFailure { Hub.log.add("令牌预注入失败：${it.message}") }
+        }
+
+        setContentView(web)
+        requestAppPermissions()
         web.loadUrl(BuildConfig.CONSOLE_URL)
         Hub.log.add("控制台加载 ${BuildConfig.CONSOLE_URL}")
     }
@@ -85,15 +136,37 @@ class MainActivity : AppCompatActivity() {
         super.onBackPressed()
     }
 
-    private fun askNotificationPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        if (!granted) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    private fun requestAppPermissions() {
+        val missing = ArrayList<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!granted(Manifest.permission.BLUETOOTH_SCAN)) missing.add(Manifest.permission.BLUETOOTH_SCAN)
+            if (!granted(Manifest.permission.BLUETOOTH_CONNECT)) missing.add(Manifest.permission.BLUETOOTH_CONNECT)
+        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R &&
+            !granted(Manifest.permission.ACCESS_FINE_LOCATION)
+        ) {
+            // Android 11 及以下，BLE 扫描仍按定位权限授权。
+            missing.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !granted(Manifest.permission.POST_NOTIFICATIONS)
+        ) {
+            missing.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (missing.isEmpty()) {
+            StudioService.startIfEnabled(this)
+        } else {
+            permissionLauncher.launch(missing.toTypedArray())
+        }
     }
 
+    private fun granted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
     private fun openExternal(url: String) {
-        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        val uri = Uri.parse(url)
+        if (uri.scheme != "https" && uri.scheme != "http") return
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+            .onFailure { Hub.log.add("打开外部链接失败：${it.message}") }
     }
 
     private inner class Client : WebViewClient() {
@@ -117,7 +190,7 @@ class MainActivity : AppCompatActivity() {
             return if (isAllowed(url)) {
                 false
             } else {
-                openExternal(url)
+                if (request.isForMainFrame) openExternal(url)
                 true
             }
         }
@@ -133,7 +206,8 @@ class MainActivity : AppCompatActivity() {
     /** 控制台不可达时的本地兜底页：说清楚缺什么，并提供重试/诊断 */
     private fun showOffline(reason: String) {
         val bluetooth = if (Hub.wear.available()) "蓝牙已开启" else "蓝牙未开启"
-        val saved = com.kldxst.studio.secure.Vault.get("device.address") ?: "未保存设备"
+        val saved = escapeHtml(com.kldxst.studio.secure.Vault.get("device.address") ?: "未保存设备")
+        val safeReason = escapeHtml(reason)
         val html = """
             <!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -150,7 +224,7 @@ class MainActivity : AppCompatActivity() {
               ul{padding-left:20px;margin:6px 0}
             </style></head><body>
             <h1>控制台暂时连不上</h1>
-            <div class="card">${reason.replace("<", "&lt;")}</div>
+            <div class="card">$safeReason</div>
             <div class="card"><b>本机检查</b><ul><li>$bluetooth</li><li>上次连接：$saved</li></ul>
               <code>${BuildConfig.CONSOLE_URL}</code></div>
             <div class="card"><b>接下来</b><br>
@@ -165,19 +239,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isAllowed(url: String?): Boolean {
-        if (url == null) return false
-        val o = originOf(url)
-        val host = o.substringAfter("://", "").substringBefore("/").substringBefore(":")
-        val hosts = BuildConfig.CONSOLE_HOSTS.split(",").map { it.trim() }
-        return url.startsWith("https://") && hosts.contains(host)
+        if (url.isNullOrBlank()) return false
+        val u = Uri.parse(url)
+        if (!u.scheme.equals("https", ignoreCase = true)) return false
+        if (u.port != -1 && u.port != 443) return false
+        val host = u.host?.lowercase() ?: return false
+        return BuildConfig.CONSOLE_HOSTS.split(",").map { it.trim().lowercase() }.contains(host)
     }
 
     private fun originOf(url: String?): String {
         if (url == null) return ""
         val u = Uri.parse(url)
-        val scheme = u.scheme ?: return ""
-        val host = u.host ?: return ""
-        return "$scheme://$host"
+        val scheme = u.scheme?.lowercase() ?: return ""
+        val host = u.host?.lowercase() ?: return ""
+        val port = if (u.port == -1 || (scheme == "https" && u.port == 443) || (scheme == "http" && u.port == 80)) {
+            ""
+        } else {
+            ":${u.port}"
+        }
+        return "$scheme://$host$port"
     }
 
     private fun randomToken(): String {
@@ -185,6 +265,13 @@ class MainActivity : AppCompatActivity() {
         SecureRandom().nextBytes(bytes)
         return bytes.joinToString("") { "%02x".format(it) }
     }
+
+    private fun escapeHtml(s: String): String = s
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;")
 
     override fun onDestroy() {
         if (this::web.isInitialized) {

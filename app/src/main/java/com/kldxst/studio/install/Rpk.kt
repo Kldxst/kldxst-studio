@@ -4,7 +4,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 
 /**
  * 资源包（.rpk / .bin / .face）的离线体检。
@@ -58,7 +58,8 @@ object Rpk {
         val digest = MessageDigest.getInstance("SHA-256")
         var manifestText: String? = null
         var entries = 0
-        var unsafe = false
+        var unsafe: String? = null
+        var declaredBytes = 0L
 
         // 第一遍只算哈希（大包不必整包进内存）
         runCatching {
@@ -73,17 +74,36 @@ object Rpk {
         }
 
         try {
-            ZipInputStream(file.inputStream().buffered()).use { zip ->
-                var e = zip.nextEntry
-                while (e != null) {
+            // ZipFile 只读中央目录，不会像 ZipInputStream 那样为了跳过条目解压整包。
+            ZipFile(file).use { zip ->
+                val all = zip.entries()
+                while (all.hasMoreElements()) {
+                    val e = all.nextElement()
                     entries++
-                    val name = e.name ?: ""
-                    if (name.startsWith("/") || name.contains("..")) unsafe = true
-                    if (manifestText == null && (name == "manifest.json" || name.endsWith("/manifest.json"))) {
-                        manifestText = readLimited(zip, 512 * 1024)
+                    if (entries > MAX_ENTRIES) {
+                        unsafe = "资源包条目过多，已拒绝"
+                        break
                     }
-                    zip.closeEntry()
-                    e = zip.nextEntry
+                    val name = e.name ?: ""
+                    val normalized = name.replace('\\', '/')
+                    if (normalized.startsWith("/") ||
+                        Regex("^[A-Za-z]:").containsMatchIn(normalized) ||
+                        normalized.split('/').any { it == ".." } ||
+                        normalized.contains('\u0000')
+                    ) {
+                        unsafe = "资源包含非法路径条目，已拒绝"
+                        break
+                    }
+                    if (e.size > 0) declaredBytes += e.size
+                    if (declaredBytes > MAX_UNCOMPRESSED_BYTES) {
+                        unsafe = "资源包解压后超过 512MB 上限"
+                        break
+                    }
+                    if (manifestText == null && !e.isDirectory &&
+                        (normalized == "manifest.json" || normalized.endsWith("/manifest.json"))
+                    ) {
+                        zip.getInputStream(e).use { manifestText = readLimited(it, 512 * 1024) }
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -91,9 +111,9 @@ object Rpk {
                 hex(digest.digest()), file.length(), entries, "不是合法的资源包：${e.message}")
         }
 
-        if (unsafe) {
+        if (unsafe != null) {
             return Info(kind, null, null, null, null, null, emptyList(), emptyList(),
-                hex(digest.digest()), file.length(), entries, "资源包含非法路径条目，已拒绝")
+                hex(digest.digest()), file.length(), entries, unsafe)
         }
         val text = manifestText
             ?: return Info(kind, null, null, null, null, null, emptyList(), emptyList(),
@@ -128,6 +148,9 @@ object Rpk {
                 hex(digest.digest()), file.length(), entries, "manifest.json 解析失败")
         }
     }
+
+    private const val MAX_ENTRIES = 20_000
+    private const val MAX_UNCOMPRESSED_BYTES = 512L * 1024 * 1024
 
     private fun readLimited(input: InputStream, limit: Int): String {
         val out = java.io.ByteArrayOutputStream()

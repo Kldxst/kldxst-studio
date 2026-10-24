@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothSocket
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
@@ -21,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
@@ -68,14 +71,22 @@ class MiWear(
     /* ---- BLE ---- */
     @Volatile private var gatt: BluetoothGatt? = null
     @Volatile private var txChar: BluetoothGattCharacteristic? = null
-    private var gattReady: CompletableDeferred<Boolean>? = null
+    @Volatile private var gattConnected = false
+    @Volatile private var mtu = 23
+    @Volatile private var descriptorDeferred: CompletableDeferred<Boolean>? = null
+    @Volatile private var mtuDeferred: CompletableDeferred<Int>? = null
+    @Volatile private var writeDeferred: CompletableDeferred<Boolean>? = null
+    private val writeLock = Mutex()
     private var rxBuffer = ByteArrayOutputStream()
 
     @Volatile var peer: Peer? = null
         private set
     @Volatile var transport: String = "none"
         private set
+    /** 协议是否已确认握手成功。当前协议未公开，只有收到回包时 authState=replied，不冒充已认证。 */
     @Volatile var authenticated: Boolean = false
+        private set
+    @Volatile var authState: String = "none"
         private set
     @Volatile var lastAuthReply: String? = null
         private set
@@ -87,7 +98,7 @@ class MiWear(
     var onFrame: ((Frame) -> Unit)? = null
 
     val connected: Boolean
-        get() = socket?.isConnected == true || transport == "ble"
+        get() = socket?.isConnected == true || (transport == "ble" && gattConnected)
 
     fun available(): Boolean = adapter?.isEnabled == true
 
@@ -103,11 +114,39 @@ class MiWear(
     /* ------------------------------------------------------------------ */
 
     @SuppressLint("MissingPermission")
-    fun scan(onFound: (List<Peer>) -> Unit, onError: (String) -> Unit, durationMs: Long = 10_000) {
-        val ad = adapter ?: return onError("本机没有蓝牙适配器")
-        if (!ad.isEnabled) return onError("蓝牙未开启")
-        val scanner = ad.bluetoothLeScanner ?: return onError("BLE 扫描不可用")
+    fun scan(
+        onFound: (List<Peer>) -> Unit,
+        onError: (String) -> Unit,
+        durationMs: Long = 10_000,
+        onDone: ((List<Peer>) -> Unit)? = null
+    ) {
+        val ad = adapter
+        if (ad == null) {
+            onError("本机没有蓝牙适配器")
+            onDone?.invoke(emptyList())
+            return
+        }
+        if (!ad.isEnabled) {
+            onError("蓝牙未开启，请先在系统设置里打开蓝牙")
+            onDone?.invoke(emptyList())
+            return
+        }
+        val scanner = ad.bluetoothLeScanner
+        if (scanner == null) {
+            onError("BLE 扫描不可用，请确认设备支持低功耗蓝牙")
+            onDone?.invoke(emptyList())
+            return
+        }
         val found = LinkedHashMap<String, Peer>()
+        var finished = false
+        fun snapshot(): List<Peer> = found.values.sortedWith(
+            compareByDescending<Peer> { it.xiaomi }.thenByDescending { it.rssi }
+        )
+        fun finish() {
+            if (finished) return
+            finished = true
+            onDone?.invoke(snapshot())
+        }
         val cb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val dev = result.device ?: return
@@ -119,15 +158,12 @@ class MiWear(
                     ?.firstOrNull { it.key.uuid.toString().lowercase().startsWith("0000fe95") }
                     ?.value?.let { parseMiProductId(it) }
                 found[dev.address] = Peer(name, dev.address, result.rssi, xiaomi, pid)
-                onFound(
-                    found.values.sortedWith(
-                        compareByDescending<Peer> { it.xiaomi }.thenByDescending { it.rssi }
-                    )
-                )
+                onFound(snapshot())
             }
 
             override fun onScanFailed(errorCode: Int) {
-                onError("扫描失败 errorCode=$errorCode")
+                onError("扫描失败 errorCode=$errorCode，请关闭其他正在扫描的应用后重试")
+                finish()
             }
         }
         try {
@@ -137,11 +173,18 @@ class MiWear(
                 cb
             )
         } catch (e: SecurityException) {
-            return onError("缺少蓝牙扫描权限")
+            onError("缺少蓝牙扫描权限，请在系统设置里允许附近设备权限")
+            finish()
+            return
+        } catch (e: Exception) {
+            onError("无法开始扫描：${e.message}")
+            finish()
+            return
         }
         scope.launch {
             delay(durationMs)
             runCatching { scanner.stopScan(cb) }
+            finish()
         }
     }
 
@@ -211,25 +254,35 @@ class MiWear(
     @SuppressLint("MissingPermission")
     suspend fun connectGatt(address: String): String = withContext(Dispatchers.IO) {
         val ad = adapter ?: throw IllegalStateException("本机没有蓝牙适配器")
-        if (!ad.isEnabled) throw IllegalStateException("蓝牙未开启")
+        if (!ad.isEnabled) throw IllegalStateException("蓝牙未开启，请先在系统设置里打开蓝牙")
         close()
         val dev = ad.getRemoteDevice(address)
         val ready = CompletableDeferred<Boolean>()
-        gattReady = ready
         rxBuffer = ByteArrayOutputStream()
         val cb = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
-                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
+                    gattConnected = true
                     log("GATT 已连接，开始发现服务")
                     g.discoverServices()
                 } else {
                     log("GATT 断开 status=$status")
+                    gattConnected = false
                     if (!ready.isCompleted) ready.complete(false)
-                    close()
+                    if (gatt === g) {
+                        transport = "none"
+                        peer = null
+                    }
+                    runCatching { g.close() }
                 }
             }
 
             override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    log("服务发现失败 status=$status")
+                    ready.complete(false)
+                    return
+                }
                 val service = g.getService(UUID.fromString(SERVICE_FE95))
                     ?: g.services.firstOrNull { it.uuid.toString().lowercase().startsWith("0000fe95") }
                 if (service == null) {
@@ -252,21 +305,57 @@ class MiWear(
                     return
                 }
                 txChar = writable
-                g.setCharacteristicNotification(notifiable, true)
+                val notificationsOn = g.setCharacteristicNotification(notifiable, true)
                 val cccd = notifiable.getDescriptor(CCCD_UUID)
-                if (cccd != null) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        run {
-                            cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                            g.writeDescriptor(cccd)
-                        }
+                if (!notificationsOn) {
+                    log("无法打开通知：setCharacteristicNotification=false")
+                    ready.complete(false)
+                    return
+                }
+                if (cccd == null) {
+                    log("FE95 就绪（无 CCCD）写=${writable.uuid} 通知=${notifiable.uuid}")
+                    ready.complete(true)
+                    return
+                }
+                val descriptor = CompletableDeferred<Boolean>()
+                descriptorDeferred = descriptor
+                val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) ==
+                        BluetoothStatusCodes.SUCCESS
+                } else {
+                    @Suppress("DEPRECATION")
+                    run {
+                        cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                        g.writeDescriptor(cccd)
                     }
                 }
-                log("FE95 就绪 写=${writable.uuid} 通知=${notifiable.uuid}")
-                ready.complete(true)
+                if (!started) {
+                    log("通知配置写入失败")
+                    ready.complete(false)
+                    return
+                }
+                // 不能把「服务发现」当成「可收通知」：必须等 CCCD 写回调。
+                scope.launch {
+                    val armed = withTimeoutOrNull(5_000) { descriptor.await() } == true
+                    if (!ready.isCompleted) ready.complete(armed)
+                    if (!armed) log("等待通知配置回包超时")
+                }
+            }
+
+            override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
+                descriptorDeferred?.complete(status == BluetoothGatt.GATT_SUCCESS)
+                descriptorDeferred = null
+            }
+
+            override fun onMtuChanged(g: BluetoothGatt, newMtu: Int, status: Int) {
+                if (status == BluetoothGatt.GATT_SUCCESS) mtu = newMtu.coerceAtLeast(23)
+                mtuDeferred?.complete(mtu)
+                mtuDeferred = null
+            }
+
+            override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
+                writeDeferred?.complete(status == BluetoothGatt.GATT_SUCCESS)
+                writeDeferred = null
             }
 
             override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray) {
@@ -291,10 +380,19 @@ class MiWear(
         val ok = withTimeoutOrNull(12_000) { ready.await() } == true
         if (!ok) {
             close()
-            throw IllegalStateException("BLE 连接失败：未找到可用的 FE95 通道")
+            throw IllegalStateException("BLE 连接失败：未找到可用的 FE95 通道，请先停止小米运动健康")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val mtuReady = CompletableDeferred<Int>()
+            mtuDeferred = mtuReady
+            if (g.requestMtu(247)) {
+                withTimeoutOrNull(2_500) { mtuReady.await() }
+            }
+            mtuDeferred = null
         }
         transport = "ble"
         peer = Peer(dev.name ?: address, address, 0, true)
+        log("BLE 就绪 MTU=$mtu，单片 ${(mtu - 3).coerceAtLeast(20)} 字节")
         dev.name ?: address
     }
 
@@ -311,7 +409,6 @@ class MiWear(
             log("← type=${f.type} len=${f.payload.size} ${FrameCodec.hex(f.payload.copyOfRange(0, minOf(16, f.payload.size)))}")
             if (f.type == profile.authType) {
                 lastAuthReply = FrameCodec.hex(f.payload)
-                authenticated = true
             }
             pending[f.type]?.let { if (!it.isCompleted) it.complete(f) }
             synchronized(frameLock) { frames.addLast(f) }
@@ -319,40 +416,55 @@ class MiWear(
         }
     }
 
-    @SuppressLint("MissingPermission")
-    fun send(bytes: ByteArray) {
+    suspend fun send(bytes: ByteArray) {
         when (transport) {
-            "spp" -> {
+            "spp" -> withContext(Dispatchers.IO) {
                 val s = socket ?: throw IllegalStateException("未连接")
                 s.outputStream.write(bytes)
                 s.outputStream.flush()
             }
-            "ble" -> {
-                val g = gatt ?: throw IllegalStateException("未连接")
-                val c = txChar ?: throw IllegalStateException("未找到写特征")
-                // 超过 MTU 时按 180 字节切片，保证不丢包
-                var off = 0
-                while (off < bytes.size) {
-                    val end = minOf(off + 180, bytes.size)
-                    val slice = bytes.copyOfRange(off, end)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        g.writeCharacteristic(c, slice, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        run {
-                            c.value = slice
-                            c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                            g.writeCharacteristic(c)
-                        }
-                    }
-                    off = end
-                }
-            }
+            "ble" -> writeBle(bytes)
             else -> throw IllegalStateException("未连接")
         }
     }
 
-    fun sendFrame(type: Int, payload: ByteArray) {
+    /**
+     * Android 的 GATT 写入是异步且一次只能有一笔在途操作。连续写多个分片而不等
+     * onCharacteristicWrite，会在真实设备上静默丢包；这里串行化并等待每次回调。
+     */
+    private suspend fun writeBle(bytes: ByteArray) = writeLock.withLock {
+        val g = gatt ?: throw IllegalStateException("未连接")
+        val c = txChar ?: throw IllegalStateException("未找到写特征")
+        val chunkSize = (mtu - 3).coerceAtLeast(20)
+        var off = 0
+        while (off < bytes.size) {
+            val next = minOf(off + chunkSize, bytes.size)
+            val slice = bytes.copyOfRange(off, next)
+            val slot = CompletableDeferred<Boolean>()
+            writeDeferred = slot
+            val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                g.writeCharacteristic(c, slice, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) ==
+                    BluetoothStatusCodes.SUCCESS
+            } else {
+                @Suppress("DEPRECATION")
+                run {
+                    c.value = slice
+                    c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    g.writeCharacteristic(c)
+                }
+            }
+            if (!started) {
+                writeDeferred = null
+                throw IllegalStateException("BLE 写特征忙，分片发送失败")
+            }
+            val ok = withTimeoutOrNull(3_000) { slot.await() } == true
+            writeDeferred = null
+            if (!ok) throw IllegalStateException("BLE 分片写入超时或被设备拒绝")
+            off = next
+        }
+    }
+
+    suspend fun sendFrame(type: Int, payload: ByteArray) {
         val bytes = FrameCodec.encode(profile, type, payload)
         log("→ type=$type len=${payload.size} ${FrameCodec.hex(bytes.copyOfRange(0, minOf(16, bytes.size)))}")
         send(bytes)
@@ -361,12 +473,13 @@ class MiWear(
     /** 发一帧并等指定类型回包；超时返回 null（界面据此提示，而不是一直转圈） */
     suspend fun request(type: Int, payload: ByteArray, expect: Int = type, timeoutMs: Long = 4000): Frame? {
         val slot = CompletableDeferred<Frame>()
-        pending[expect] = slot
-        sendFrame(type, payload)
+        val previous = pending.putIfAbsent(expect, slot)
+        if (previous != null) throw IllegalStateException("已有同类命令在等待回包，请稍后再试")
         return try {
+            sendFrame(type, payload)
             withTimeoutOrNull(timeoutMs) { slot.await() }
         } finally {
-            pending.remove(expect)
+            pending.remove(expect, slot)
         }
     }
 
@@ -376,28 +489,54 @@ class MiWear(
 
     /**
      * authkey 是 32 位十六进制（16 字节），登录小米账号后取回。
-     * 这里按 AES-128-ECB 加密一段随机数发出；回包内容原样记录，
-     * 语义需真机确认，所以不谎报「认证成功」——只报「已发出、收到 N 字节」。
+     *
+     * AstroBox 的字符串证据说明 miwear-auth 使用 HMAC（base91 只在其内部报文层），
+     * 但完整帧格式仍未经真机确认。因此这里按 profile.authMode 组包，回包只记录，
+     * 不把「收到任意 auth 类型帧」当成认证成功。
      */
     suspend fun auth(authkeyHex: String): JSONObject = withContext(Dispatchers.IO) {
         val key = FrameCodec.unhex(authkeyHex)
         require(key != null && key.size == 16) { "authkey 应为 32 位十六进制" }
-        // 与 AstroBox 的 miwear-auth 一致：HMAC-SHA256(authkey, 手机 nonce)
-        val nonce = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
-        val mac = javax.crypto.Mac.getInstance("HmacSHA256")
-        mac.init(javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"))
-        val hmac = mac.doFinal(nonce)
-        val payload = nonce + hmac
+        val nonce = ByteArray(profile.authNonceBytes).also { java.security.SecureRandom().nextBytes(it) }
+        val payload = when (profile.authMode) {
+            "hmac-sha256" -> {
+                val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+                mac.init(SecretKeySpec(key, "HmacSHA256"))
+                nonce + mac.doFinal(nonce)
+            }
+            "aes-ecb-128", "aes-ecb-256" -> {
+                val keyBytes = if (profile.authMode == "aes-ecb-128") key else {
+                    // authkey 固定 16 字节；256 位模式由调用方在校准参数里提供 32 字节时才可用。
+                    throw IllegalStateException("aes-ecb-256 需要 32 字节密钥，当前 authkey 只有 16 字节")
+                }
+                val cipher = Cipher.getInstance("AES/ECB/NoPadding")
+                cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(keyBytes, "AES"))
+                val block = ByteArray(16)
+                nonce.copyInto(block, endIndex = minOf(nonce.size, 16))
+                cipher.doFinal(block)
+            }
+            "none" -> nonce
+            else -> throw IllegalStateException("不支持的 authMode：${profile.authMode}")
+        }
         authenticated = false
+        authState = "sending"
         lastAuthReply = null
-        val reply = request(profile.authType, payload, profile.authType, 3000)
+        val reply = try {
+            request(profile.authType, payload, profile.authType, 3000)
+        } catch (e: Exception) {
+            authState = "failed"
+            throw e
+        }
+        authState = if (reply == null) "no_reply" else "replied"
         JSONObject()
             .put("sent", true)
+            .put("mode", profile.authMode)
             .put("nonce", FrameCodec.hex(nonce))
-            .put("hmac", FrameCodec.hex(hmac))
+            .put("payload", FrameCodec.hex(payload))
             .put("reply", lastAuthReply ?: JSONObject.NULL)
             .put("replied", reply != null)
-            .put("note", if (reply == null) "已发出，未收到回包" else "已收到回包")
+            .put("state", authState)
+            .put("note", if (reply == null) "已发出，未收到回包" else "已收到回包，握手结果需真机确认")
     }
 
     /* ------------------------------------------------------------------ */
@@ -433,15 +572,27 @@ class MiWear(
 
     fun close() {
         authenticated = false
+        authState = "none"
+        writeDeferred?.complete(false)
+        writeDeferred = null
+        descriptorDeferred?.complete(false)
+        descriptorDeferred = null
+        mtuDeferred?.complete(mtu)
+        mtuDeferred = null
         runCatching { socket?.close() }
         socket = null
         runCatching { gatt?.disconnect(); gatt?.close() }
         gatt = null
+        gattConnected = false
         txChar = null
+        mtu = 23
         transport = "none"
         peer = null
         spool = ByteArrayOutputStream()
         rxBuffer = ByteArrayOutputStream()
+        val waiters = pending.values.toList()
+        pending.clear()
+        waiters.forEach { it.completeExceptionally(IllegalStateException("连接已断开")) }
     }
 
     companion object {

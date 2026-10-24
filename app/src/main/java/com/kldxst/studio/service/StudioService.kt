@@ -1,13 +1,19 @@
 package com.kldxst.studio.service
 
+import android.Manifest
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.kldxst.studio.BuildConfig
@@ -17,6 +23,9 @@ import com.kldxst.studio.StudioApp
 import com.kldxst.studio.bt.FrameCodec
 import com.kldxst.studio.core.Hub
 import com.kldxst.studio.secure.Vault
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -26,6 +35,8 @@ import kotlinx.coroutines.launch
  * 所以用前台服务把进程钉住。
  */
 class StudioService : LifecycleService() {
+
+    private var loopJob: Job? = null
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -54,7 +65,6 @@ class StudioService : LifecycleService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             ACTION_STOP -> {
                 stopAll()
@@ -67,37 +77,76 @@ class StudioService : LifecycleService() {
     }
 
     private fun startAll() {
-        startForeground(NOTIFICATION_ID, buildNotification("准备连接…"))
+        val started = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildNotification("准备连接…"),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification("准备连接…"))
+            }
+        }.onFailure {
+            Hub.lastError = it.message
+            Hub.log.add("前台服务启动失败：${it.message}")
+        }.isSuccess
+        if (!started) {
+            stopSelf()
+            return
+        }
         Hub.bridgeRunning = true
         Hub.log.add("服务启动")
-        lifecycleScope.launch {
+        loopJob?.cancel()
+        loopJob = lifecycleScope.launch { connectionLoop() }
+    }
+
+    /**
+     * 蓝牙断开后不能只把通知改成「连接失败」然后等用户重启应用。
+     * 前台服务在，就按退避间隔重连；用户主动停止服务时 [Hub.bridgeRunning] 置 false。
+     */
+    private suspend fun connectionLoop() {
+        var backoff = 3_000L
+        while (kotlinx.coroutines.currentCoroutineContext().isActive && Hub.bridgeRunning) {
             val address = Vault.get("device.address")
             if (address.isNullOrBlank()) {
                 updateNotification("未连接：先在控制台里连接一次手环")
-                Hub.log.add("没有已保存的设备地址")
-                return@launch
+                delay(30_000)
+                continue
             }
-            val transport = Vault.get("device.transport") ?: "spp"
-            try {
-                if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
-                updateNotification("已连接 ${Hub.wear.peer?.name ?: address}")
-                Hub.log.add("已连接 $address（$transport）")
-                val key = Vault.get("authkey")
-                if (!key.isNullOrBlank()) {
-                    runCatching { Hub.wear.auth(key) }
-                        .onSuccess { Hub.log.add("authkey 已发出，回包：${it.optString("reply")}") }
-                        .onFailure { Hub.log.add("authkey 握手失败：${it.message}") }
+            if (!Hub.wear.connected) {
+                val transport = Vault.get("device.transport") ?: "spp"
+                updateNotification("正在连接 ${address}…")
+                try {
+                    if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
+                    Hub.lastError = null
+                    updateNotification("已连接 ${Hub.wear.peer?.name ?: address}")
+                    Hub.log.add("已连接 $address（$transport）")
+                    val key = Vault.get("authkey")
+                    if (!key.isNullOrBlank()) {
+                        runCatching { Hub.wear.auth(key) }
+                            .onSuccess { Hub.log.add("authkey ${it.optString("state")}") }
+                            .onFailure { Hub.log.add("authkey 握手失败：${it.message}") }
+                    }
+                    backoff = 3_000
+                } catch (e: Exception) {
+                    Hub.lastError = e.message
+                    updateNotification("连接失败，${(e.message ?: "请检查蓝牙").take(48)}")
+                    Hub.log.add("连接失败：${e.message}")
+                    delay(backoff)
+                    backoff = (backoff * 2).coerceAtMost(60_000)
+                    continue
                 }
-            } catch (e: Exception) {
-                Hub.lastError = e.message
-                updateNotification("连接失败：${e.message}")
-                Hub.log.add("连接失败：${e.message}")
             }
+            delay(5_000)
         }
     }
 
     private fun stopAll() {
         Hub.bridgeRunning = false
+        loopJob?.cancel()
+        loopJob = null
         Hub.wear.close()
         Hub.log.add("服务停止")
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -119,12 +168,15 @@ class StudioService : LifecycleService() {
     }
 
     private fun updateNotification(text: String) {
-        val nm = getSystemService(android.app.NotificationManager::class.java)
+        val nm = getSystemService(NotificationManager::class.java)
         nm.notify(NOTIFICATION_ID, buildNotification(text))
     }
 
     override fun onDestroy() {
         Hub.bridgeRunning = false
+        loopJob?.cancel()
+        loopJob = null
+        Hub.wear.onFrame = null
         super.onDestroy()
     }
 
@@ -134,25 +186,42 @@ class StudioService : LifecycleService() {
         private const val NOTIFICATION_ID = 1101
 
         fun start(ctx: Context) {
+            if (!canStartConnectedDeviceService(ctx)) {
+                Hub.log.add("未启动前台服务：缺少附近设备权限")
+                return
+            }
             val i = Intent(ctx, StudioService::class.java).setAction(ACTION_START)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(i)
-            else ctx.startService(i)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(i)
+                else ctx.startService(i)
+            }.onFailure { Hub.log.add("启动前台服务失败：${it.message}") }
+        }
+
+        /** 应用启动/权限回调时调用；用户明确停止过或没有保存设备时不自动拉起。 */
+        fun startIfEnabled(ctx: Context) {
+            val prefs = ctx.getSharedPreferences("kldxst", Context.MODE_PRIVATE)
+            if (!prefs.getBoolean("bridge.autoStart", true)) return
+            if (Vault.get("device.address").isNullOrBlank()) return
+            start(ctx)
         }
 
         fun stop(ctx: Context) {
-            val i = Intent(ctx, StudioService::class.java).setAction(ACTION_STOP)
-            runCatching { ctx.startService(i) }
+            Hub.bridgeRunning = false
+            runCatching { ctx.stopService(Intent(ctx, StudioService::class.java)) }
+        }
+
+        private fun canStartConnectedDeviceService(ctx: Context): Boolean {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+            val connect = ContextCompat.checkSelfPermission(ctx, Manifest.permission.BLUETOOTH_CONNECT)
+            return connect == PackageManager.PERMISSION_GRANTED
         }
     }
 }
 
-/** 开机自启：上次开着网桥就继续开着 */
+/** 开机自启：上次开着网桥且有已保存设备时继续重连 */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val action = intent.action ?: return
-        if (action != Intent.ACTION_BOOT_COMPLETED && action != "android.intent.action.LOCKED_BOOT_COMPLETED") return
-        if (context.getSharedPreferences("kldxst", Context.MODE_PRIVATE).getBoolean("bridge.autoStart", false)) {
-            StudioService.start(context)
-        }
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        StudioService.startIfEnabled(context)
     }
 }
