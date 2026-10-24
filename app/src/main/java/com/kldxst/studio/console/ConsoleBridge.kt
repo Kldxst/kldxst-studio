@@ -23,6 +23,7 @@ import com.kldxst.studio.service.StudioService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -389,7 +390,7 @@ class ConsoleBridge(
         require(result.status in 200..299) { "下载失败：HTTP ${result.status}，请填写最终下载地址" }
         require(!result.truncated) { "资源超过 64MB 上限" }
 
-        val name = url.substringAfterLast('/').ifBlank { "download.rpk" }
+        val name = Uri.parse(url).lastPathSegment?.ifBlank { "download.rpk" } ?: "download.rpk"
         val dir = File(ctx.cacheDir, "rpk").apply { mkdirs() }
         val target = File(dir, name.replace(Regex("[^A-Za-z0-9._-]"), "_"))
         target.writeBytes(result.body)
@@ -457,6 +458,11 @@ class ConsoleBridge(
 
     private fun reply(reqId: String, payload: JSONObject) {
         emit?.invoke(reqId, payload.toString())
+    }
+
+    fun close() {
+        emit = null
+        scope.cancel()
     }
 
     companion object {

@@ -60,6 +60,17 @@ class RpkTest {
     }
 
     @Test
+    fun `固件裸二进制只做哈希体检`() {
+        val file = tmp.newFile("firmware.bin")
+        file.writeBytes(byteArrayOf(0x12, 0x34, 0x56, 0x78))
+        val info = Rpk.inspect(file)
+        assertEquals("firmware", info.kind)
+        assertNull(info.error)
+        assertEquals(4L, info.size)
+        assertEquals(64, info.sha256.length)
+    }
+
+    @Test
     fun `缺少 manifest 被拒绝`() {
         val file = tmp.newFile("empty.rpk")
         ZipOutputStream(file.outputStream()).use { out ->

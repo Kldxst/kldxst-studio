@@ -107,6 +107,11 @@ object Rpk {
                 }
             }
         } catch (e: Exception) {
+            // 固件 .bin 通常是裸二进制，不是 zip；只做大小与哈希体检。
+            if (kind == "firmware") {
+                return Info(kind, null, null, null, null, null, emptyList(), emptyList(),
+                    hex(digest.digest()), file.length(), entries, null)
+            }
             return Info(kind, null, null, null, null, null, emptyList(), emptyList(),
                 hex(digest.digest()), file.length(), entries, "不是合法的资源包：${e.message}")
         }

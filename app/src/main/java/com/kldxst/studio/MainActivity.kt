@@ -30,7 +30,7 @@ import java.security.SecureRandom
  *
  * 「只打包一次」的技术前提就在这里 —— 界面、流程、作品清单、协议参数全部来自
  * [BuildConfig.CONSOLE_URL]，APK 只负责三件不会变的事：
- *   1. 与手环通信（官方 SDK 通道）
+ *   1. 与手环通信（SPP / BLE 直连）
  *   2. 代快应用发 HTTP（网桥引擎）
  *   3. 安全地把能力暴露给页面（本类 + ConsoleBridge）
  */
@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 页面脚本一执行就需要令牌。onPageFinished 注入太晚，因此优先使用
-        // WebView 的 document-start 能力；不支持时页面会通过 Kldxst.token() 取。
+        // WebView 的 document-start 能力；不支持时页面会通过 Kldxst.sessionToken() 取。
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             val script = "window.__kldxstToken=${JSONObject.quote(token)};"
             runCatching {
@@ -167,7 +167,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun openExternal(url: String) {
         val uri = Uri.parse(url)
-        if (uri.scheme != "https" && uri.scheme != "http") return
+        if (!uri.scheme.equals("https", ignoreCase = true) && !uri.scheme.equals("http", ignoreCase = true)) return
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
             .onFailure { Hub.log.add("打开外部链接失败：${it.message}") }
     }
@@ -283,6 +283,7 @@ class MainActivity : AppCompatActivity() {
             web.loadUrl("about:blank")
             web.destroy()
         }
+        if (this::bridge.isInitialized) bridge.close()
         super.onDestroy()
     }
 }

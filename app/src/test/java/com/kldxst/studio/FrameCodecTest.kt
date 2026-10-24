@@ -2,6 +2,7 @@ package com.kldxst.studio
 
 import com.kldxst.studio.bt.FrameCodec
 import com.kldxst.studio.bt.ProtocolProfile
+import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -65,6 +66,18 @@ class FrameCodecTest {
         assertEquals(1, frames.size)
         assertEquals(9, frames[0].type)
         assertArrayEquals(partial, rest)
+    }
+
+    @Test
+    fun `旧版 authMode 迁移到新的 AES 命名`() {
+        val p = ProtocolProfile.fromJson(
+            JSONObject()
+                .put("authMode", "aes-ecb-16")
+                .put("ops", JSONObject().put("notify", 16))
+        )
+        assertEquals("aes-ecb-128", p.authMode)
+        assertEquals(16, p.ops["notify"] ?: -1)
+        assertEquals(4, p.headerBytes)
     }
 
     @Test

@@ -198,7 +198,7 @@ class BridgeEngine(
 
         if (!wantChunk) {
             val (encoding, wire) = encodeSingle(payload, neg, rawWanted)
-            if (wire.length > BridgeCaps.MAX_UNCHUNKED_WIRE_LEN) {
+            if (wire.toByteArray(StandardCharsets.UTF_8).size > BridgeCaps.MAX_UNCHUNKED_WIRE_LEN) {
                 // 未协商分片或边界情况：绝不能用一条蓝牙帧硬塞大响应。
                 reply(errorResponse(id, "响应体过大，对端未协商分片").also { log("单帧超限，已拒绝") })
                 return
@@ -463,9 +463,11 @@ class BridgeEngine(
         val k = key(addr, pkg)
         val now = System.currentTimeMillis()
         sessions.entries.removeAll { now - it.value.lastActive > BridgeCaps.SESSION_IDLE_MS }
-        return sessions.getOrPut(k) {
+        val s = sessions.getOrPut(k) {
             Session(addr, pkg, Negotiated.of(PeerCaps(), policy))
         }
+        s.tx.entries.removeAll { now - it.value.createdAt > BridgeCaps.TX_TIMEOUT_MS }
+        return s
     }
 
     private fun errorResponse(id: String, message: String): String {
@@ -497,6 +499,7 @@ class BridgeEngine(
         private var base = 0
         private var next = 0
         private var retransmitted = false
+        val createdAt: Long = System.currentTimeMillis()
         val done: Boolean get() = base >= chunks.size
 
         fun pump() {

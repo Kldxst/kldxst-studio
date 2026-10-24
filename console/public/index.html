@@ -290,7 +290,7 @@
   if (!TOKEN && NATIVE) {
     try { TOKEN = window.Kldxst.sessionToken() || ''; } catch (e) { TOKEN = ''; }
   }
-  var seq = 0, pending = {}, transport = 'spp', peers = [], policyState = {}, deviceOps = {};
+  var seq = 0, pending = {}, transport = 'spp', peers = [], policyState = {}, deviceOps = {}, tokenAttempts = 0;
 
   window.KldxstOnResult = function (id, json) {
     var cb = pending[id]; if (!cb) return; delete pending[id];
@@ -303,7 +303,14 @@
     if (!TOKEN) {
       try { TOKEN = window.Kldxst.sessionToken() || ''; } catch (e) {}
     }
+    if (!TOKEN && tokenAttempts < 4) {
+      tokenAttempts++;
+      return new Promise(function (resolve) {
+        setTimeout(function () { resolve(call(method, args)); }, 150);
+      });
+    }
     if (!TOKEN) return Promise.resolve({ ok: false, error: 'E_TOKEN', message: '会话未就绪，请关闭页面后重新打开应用' });
+    tokenAttempts = 0;
     return new Promise(function (resolve) {
       var id = 'r' + (++seq); pending[id] = resolve;
       try { window.Kldxst.call(id, method, JSON.stringify(Object.assign({}, args || {}, { t: TOKEN }))); }
