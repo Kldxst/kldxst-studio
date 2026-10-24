@@ -38,7 +38,7 @@ data class ProtocolProfile(
         require(typeOffset in 1..15) { "typeOffset 必须在 1..15" }
         require(lengthOffset in 1..15) { "lengthOffset 必须在 1..15" }
         require(lengthBytes in 1..4) { "lengthBytes 必须在 1..4" }
-        require(lengthOffset + lengthBytes > typeOffset && typeOffset + 1 > lengthOffset) {
+        require(!(lengthOffset < typeOffset + 1 && lengthOffset + lengthBytes > typeOffset)) {
             "类型字段与长度字段不能重叠"
         }
         require(headerBytes >= maxOf(typeOffset + 1, lengthOffset + lengthBytes)) {
