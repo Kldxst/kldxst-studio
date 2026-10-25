@@ -276,16 +276,10 @@ class ConsoleBridge(
             ok(JSONObject().put("sent", bytes.size))
         }
 
-        /** 业务命令：消息号由 profile.ops 决定，payload 由页面给 */
-        "op.run" -> {
-            val op = a.optString("op")
-            require(op.isNotBlank()) { "缺少 op" }
-            val payloadHex = a.optString("payloadHex")
-            val payload = if (payloadHex.isBlank()) ByteArray(0)
-            else FrameCodec.unhex(payloadHex) ?: throw IllegalArgumentException("payloadHex 解析失败")
-            val timeout = a.optLong("timeoutMs", 6000L).coerceIn(500, 30000)
-            ok(Hub.wear.command(op, payload, timeout))
-        }
+        /** 旧版“单字节命令”模型已废弃；真实业务身份是 WearPacket.type + id。 */
+        "op.run" -> throw IllegalStateException(
+            "旧协议 op.run 已停用；请使用 apps.* / notify.push / watchfaces.*"
+        )
 
         /** 通知：真实 NotifyData protobuf，date 用本地 yyyyMMdd'T'HHmmss。 */
         "notify.push" -> {
