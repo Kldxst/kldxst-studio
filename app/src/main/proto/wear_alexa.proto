@@ -1,0 +1,159 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+enum AlexaResultType {
+    ALEXA_START_LISTENING = 0;
+    ALEXA_END_LISTENING = 1;
+    ALEXA_AUTH_STATUS = 3;
+    ALEXA_ERROR_NETWORK = 80;
+    ALEXA_ERROR_AUTH = 81;
+    ALEXA_ERROR_CONTENT_TOO_LONG = 82;
+    ALEXA_ERROR_UNRECOGNIZABLE_SPEECH = 83;
+    ALEXA_ERROR_UNSUPPORTED_AREA = 84;
+    ALEXA_ERROR_IOS_DEVICE_NOT_SUPPORT = 85;
+    ALEXA_ERROR_ANDROID_DEVICE_NOT_SUPPORT = 86;
+    ALEXA_ERROR_PLAY_NOT_SUPPORT = 87;
+    ALEXA_TEMPLATE_GENERAL = 257;
+    ALEXA_TEMPLATE_WEATHER = 258;
+    ALEXA_TEMPLATE_LISTS = 259;
+    ALEXA_ALERTS_SETALERT = 260;
+    ALEXA_ALERTS_DELETEALERTS = 261;
+    ALEXA_SPEECHSYNTHESIZER_SPEAK = 262;
+    ALEXA_SPEECHRECOGNIZER_EXPECTSPEECH = 263;
+    ALEXA_NOTIFICATIONS_SETINDICATOR = 264;
+    ALEXA_NOTIFICATIONS_CLEARINDICATOR = 265;
+}
+
+enum AlexaAlertType {
+    ALEXA_AlertType_UNKNOWN = -1;
+    ALEXA_ALARM = 0;
+    ALEXA_REMINDER = 1;
+    ALEXA_TIMER = 2;
+}
+
+enum AlexaAuthStatus {
+    ALEXA_AUTH = 0;
+    ALEXA_NO_AUTH = 1;
+}
+
+message Alexa {
+
+    enum AlexaID {
+        SYNC_INSTRUCTION_LIST = 0;
+        SET_CONFIG = 1;
+        GET_CONFIG = 2;
+        REPORT_QUIET_MODE = 3;
+    } 
+
+    oneof payload {
+        AlexaInstruction.List instruction_list = 1;
+        AlexaConfig config = 2;
+        AlexaQuietMode quiet_mode = 3;
+    }
+}
+
+message AlexaConfig {
+    required string client_id = 1;
+    required string refresh_token = 2;
+    required string language = 3;
+}
+
+message AlexaQuietMode {
+    required bool on = 1;
+}
+
+message AlexaInstruction {
+
+    message List {
+        repeated AlexaInstruction list = 1;
+    }
+
+    required AlexaResultType result_type = 1;
+    optional AlexaTemplateGeneral template_general = 2;
+    optional AlexaTemplateWeather template_weather = 3;
+    optional AlexaTemplateLists template_lists = 4;
+    optional AlexaAlertsSetAlert alerts_setalert = 5;
+    optional AlexaSpeechSynthesizerSpeak speechsynthesizer_speak = 6;
+    optional AlexaAuthStatus auth_status = 7;
+    optional AlexaAlertsDeleteAlert.List alerts_deletealerts = 12;
+    optional AlexaNotificationsSetIndicator notifications_setindicator = 13;
+}
+
+message AlexaTemplateGeneral {
+    required AlexaTitle title = 1;
+    required string text = 2;
+}
+
+message AlexaTemplateWeather {
+    required AlexaTitle title = 1;
+    required string current_weather = 2;
+    required string description = 3;
+    required string high_temperature = 4;
+    required string low_temperature = 5;
+    required string image = 6;
+    required AlexaWeatherItem.List weatherForecast = 7;
+    required int32 weather_code = 8;
+}
+
+message AlexaWeatherItem {
+
+    message List {
+        repeated AlexaWeatherItem list = 1;
+    }
+
+    required string date = 1;
+    required string weekday = 2;
+    required string high_temperature = 3;
+    required string low_temperature = 4;
+    required string image = 5;
+    required int32 weather_code = 6;
+}
+
+message AlexaTemplateLists {
+    required AlexaTitle title = 1;
+    required AlexaListsItem.List items = 2;
+    required bool exceed_max_items = 3;
+}
+
+message AlexaListsItem {
+
+    message List {
+        repeated AlexaListsItem list = 1;
+    }
+
+    required string left = 1;
+    required string right = 2;
+}
+
+message AlexaAlertsSetAlert {
+    required string token = 1;
+    required AlexaAlertType type = 2;
+    required string scheduledTime = 3;
+    required string label = 4;
+}
+
+message AlexaAlertsDeleteAlert {
+
+    message List {
+        repeated AlexaAlertsDeleteAlert list = 1;
+    }
+
+    required string token = 1;
+}
+
+message AlexaSpeechSynthesizerSpeak {
+    required string text = 1;
+}
+
+message AlexaTitle {
+    required string main_title = 1;
+    required string sub_title = 2;
+}
+
+message AlexaNotificationsSetIndicator {
+    required bool playAudioIndicator = 1;
+    required bool persistVisualIndicator = 2;
+}

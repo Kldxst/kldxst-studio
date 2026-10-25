@@ -1,0 +1,962 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum GpsAccuracy {
+    GPS_LOW = 0;
+    GPS_MEDIUM = 1;
+    GPS_HIGH = 2;
+    GPS_UNKNOWN = 10;
+}
+
+enum GYMCapability
+{
+    GYM_SAVE_DATA = 1;
+    GYM_RECEIVE_ASSIST = 2;
+}
+
+message Fitness {
+
+    enum FitnessID {
+        SET_USER_PROFILE = 0;
+        REQUEST_USER_PROFILE = 7;
+        GET_TODAY_FITNESS_IDS = 1;
+        GET_HISTORY_FITNESS_IDS = 2;
+        REQUEST_FITNESS_IDS = 3;
+        REQUEST_FITNESS_ID = 4;
+        CONFIRM_FITNESS_ID = 5;
+        GET_REMAINING_SPORT_DATA = 6;
+        GET_BLOOD_OXYGEN_MONITOR = 8;
+        SET_BLOOD_OXYGEN_MONITOR = 9;
+        GET_HEART_RATE_MONITOR = 10;
+        SET_HEART_RATE_MONITOR = 11;
+        GET_SEDENTARY_REMINDER = 12;
+        SET_SEDENTARY_REMINDER = 13;
+        GET_PRESSURE_MONITOR = 14;
+        SET_PRESSURE_MONITOR = 15;
+        GET_BLOOD_PRESSURE_REMINDER = 16;
+        SET_BLOOD_PRESSURE_REMINDER = 17;
+        GET_ECG_REMINDER = 18;
+        SET_ECG_REMINDER = 19;
+        CHECK_ECG_ACTIVATION = 54;
+        ACTIVATE_ECG = 55;
+        DEACTIVATE_ECG = 85;
+        START_PRESSURE_CALIBRATE = 23;
+        STOP_PRESSURE_CALIBRATE = 24;
+        COMPLETE_PRESSURE_CALIBRATE = 25;
+        SPORT_REQUEST = 26;
+        PHONE_SPORT_DATA = 27;
+        WEAR_SPORT_DATA = 28;
+        GET_SPORT_STATUS = 29;
+        SPORT_PRE_REQUEST = 30;
+        ECG_REQUEST = 32;
+        REPORT_ECG_DATA = 33;
+        REPORT_ECG_STATUS = 34;
+        GET_WOMEN_HEALTH = 20;
+        REQUEST_WOMEN_HEALTH = 37;
+        SYNC_WOMEN_HEALTH = 38;
+        SET_WOMEN_HEALTH_FORCAST = 39;
+        SET_WOMEN_HEALTH_REMINDER = 40;
+        SYNC_SLEEP_RESULT = 41;
+        GET_GOAL_STATUS = 42;
+        SET_GOAL_STATUS = 43;
+        GET_BASIC_DATA = 44;
+        REGISTER_BASIC_DATA_REPORT = 45;
+        UNREGISTER_BASIC_DATA_REPORT = 46;
+        REPORT_BASIC_DATA = 47;
+        SYNC_VITALITY_DATA = 51;
+        SYNC_BEST_SPORT_DATA = 52;
+        GET_VITALITY_REMINDER = 21;
+        SET_VITALITY_REMINDER = 22;
+        GET_ACTIVITY_REMINDER = 35;
+        SET_ACTIVITY_REMINDER = 36;
+        PHONE_SPORT_DATA_V2D = 48;
+        PHONE_SPORT_DATA_V2A = 49;
+        WEAR_SPORT_DATA_V2A = 50;
+        WEAR_SENSOR_DATA = 53;
+        MOTION_INTERACT = 56;
+        PHONE_CONTROL_DATA = 83;
+        WEAR_CONTROL_DATA = 84;
+        GYM_REQUEST = 64;
+        GYM_ASSIST = 65;
+        GYM_DATA = 66;
+        GET_GYM_SETTINGS = 67;
+        SET_GYM_SETTINGS = 68;
+        GET_NAVI_ROUTES = 57;
+        ADD_NAVI_ROUTE = 58;
+        REPORT_ADD_ROUTE_RESULT = 59;
+        REMOVE_NAVE_ROUTES = 60;
+        GET_SLEEP_REGULARITY = 61;
+        SET_SLEEP_REGULARITY = 62;
+        GET_SLEEP_DISORDER = 63;
+        SET_SLEEP_DISORDER = 69;
+        SET_RESEARCH_USER_PROFILE = 70;
+        GET_TODAY_RESEARCH_IDS = 71;
+        GET_HISTORY_RESEARCH_IDS = 72;
+        REQUEST_RESEARCH_IDS = 73;
+        REQUEST_RESEARCH_ID = 74;
+        CONFIRM_RESEARCH_ID = 75;
+        UPDATE_APP_RESEARCH = 76;
+        SYNC_APP_RESEARCH_LIST = 77;
+        GET_DEVICE_RESEARCH_LIST = 78;
+        REQUEST_RESEARCH_CALIBRATION = 79;
+        REPORT_RESEARCH_CALIBRATION_STEP1 = 80;
+        REPORT_RESEARCH_CALIBRATION_STEP2 = 81;
+        REPORT_RESEARCH_CALIBRATION = 89;
+        SET_BP_RESEARCH = 82;
+        REQUEST_BPG_CALIBRATION = 90;
+        GET_BPG_CALIB_STATUS = 91;
+        GET_TRAINING_STATUS = 86;
+        SYNC_TRAINING_PLAN = 87;
+        STOP_TRAINING_PLAN = 88;
+    }
+
+    oneof payload {
+        UserProfile user_profile = 1;
+        bytes ids = 2;
+        bytes id = 3;
+        RemainingSportData.List remaining_sport_data_list = 4;
+        SyncParam sync_param = 5;
+        BloodOxygenMonitor blood_oxygen_monitor = 7;
+        HeartRateMonitor heart_rate_monitor = 8;
+        SedentaryReminder sedentary_reminder = 9;
+        PressureMonitor pressure_monitor = 10;
+        MeasureReminder measure_reminder = 11;
+        WomenHealth.Section.List section_list = 12;
+        VitalityReminder vitality_reminder = 13;
+        ActivityReminder activity_reminder = 14;
+        WearSensorData wear_sensor_data = 15;
+        PressureCalibrate.Response pressur_calibrate_response = 17;
+        PressureCalibrate.EvaluationResult evaluation_result = 18;
+        PressureCalibrate.CalibrationResult calibration_result = 19;
+        SportRequest sport_request = 20;
+        SportResponse sport_response = 21;
+        PhoneSportData phone_sport_data = 22;
+        WearSportData wear_sport_data = 23;
+        SportStatus sport_status = 24;
+        SportPreRequest sport_pre_request = 25;
+        SportPreResponse sport_pre_response = 26;
+        ECGRequest ecg_request = 27;
+        ECGResponse ecg_response = 28;
+        ECGData ecg_data = 29;
+        ECGStatus ecg_status = 30;
+        WomenHealth women_health = 34;
+        bool forcast_on = 35;
+        WomenHealth.Reminder.List reminder_list = 36;
+        SleepResult sleep_result = 37;
+        Goal.Status goal_status = 38;
+        BasicData basic_data = 39;
+        PhoneSportDataV2D phone_sport_data_v2d = 40;
+        PhoneSportDataV2A phone_sport_data_v2a = 41;
+        WearSportDataV2A wear_sport_data_v2a = 42;
+        VitalityData.List vitality_data_list = 43;
+        BestSportData.List sport_data_list = 44;
+        ECGActivation ecg_activation = 45;
+        MotionInteract motion_interact = 46;
+        NaviRoute.List navi_route_list = 47;
+        NaviRoute.AddRequest navi_route_add_reqeust = 48;
+        NaviRoute.AddResponse navi_route_add_response = 49;
+        GYMRequest gym_request = 50;
+        GYMResponse gym_response = 51;
+        GYMAssist gym_assist = 52;
+        GYMData gym_data = 53;
+        GYMSetting.List gym_setting_list = 54;
+        NaviRoute.AddResult navi_route_add_result = 55;
+        NaviRoute.RemoveRequest navi_route_remove_reqeust = 56;
+        NaviRoute.RemoveResponse navi_route_remove_response = 57;
+        SleepRegularity sleep_regularity = 58;
+        SleepDisorder sleep_disorder = 59;
+        Research.App research_app = 60;
+        Research.App.List research_app_list = 61;
+        Research.Device.List research_device_list = 62;
+        Research.CalibrationRequest research_cali_request = 63;
+        Research.CalibrationResponse research_cali_response = 64;
+        Research.BpSetting research_bp_setting = 65;
+        PhoneControlData phone_control_data = 66;
+        WearControlData wear_control_data = 67;
+        Training training = 68;
+        Research.BPGCalibrationRequest bpg_cali_request = 69;
+        Research.BPGCalibrationStatus bpg_cali_status = 70;
+    }
+}
+
+message UserProfile {
+
+    message Contact {
+        required string name = 1;
+        required string number = 2;
+        required uint32 relation = 3;
+    }
+
+    optional uint32 height = 1;
+    optional float weight = 2;
+    optional uint32 birth = 3;
+    optional Sex sex = 4;
+    optional uint32 max_hr = 5;
+    optional uint32 goal_calorie = 6;
+    optional uint32 goal_step = 7;
+    optional float maximal_met = 8;
+    optional uint32 goal_valid_stand = 9;
+    optional uint32 goal_sleep = 10;
+    optional uint32 goal_intensity = 11;
+    optional uint32 default_height = 12;
+    optional uint32 default_weight = 13;
+    optional uint32 default_birth = 14;
+    optional uint32 default_sex = 15;
+    required string name = 16;
+    optional uint32 blood_type = 17;
+    optional uint32 rh_blood_type = 18;
+    optional uint32 organ_donation_volunteer = 19;
+    optional Contact contact = 20;
+    required string allergy_medicine = 21;
+    required string chronic_disease = 22;
+    required string medical_program = 23;
+}
+
+message SyncParam {
+    required uint32 reason = 1;
+}
+
+message RemainingSportData {
+
+    message List {
+        repeated RemainingSportData list = 1;
+    }
+
+    required bytes ids = 1;
+    optional uint32 sport_course_type = 2;
+    optional uint64 cloud_course_id = 3;
+    optional uint32 duration = 4;
+    optional uint32 distance = 5;
+}
+
+message WarningOption {
+    required bool warning = 1;
+    required uint32 warning_value = 2;
+}
+
+message BloodOxygenMonitor {
+
+    enum Mode {
+        OFF = 0;
+        SLEEP_ON = 1;
+        ALL_DAY_ON = 2;
+    }
+
+    required bool support_all_day = 1;
+    required Mode mode = 2;
+    optional uint32 frequency = 3;
+    optional WarningOption warning_non_sleep = 4;
+}
+
+message HeartRateMonitor {
+
+    enum Mode {
+        AUTO = 0;
+        OFF = 1;
+    }
+
+    message AssistSleep {
+        required bool on = 1;
+    }
+
+    required Mode mode = 1;
+    required uint32 frequency = 2;
+    optional bool support_intelligent_monitor = 7;
+    required bool warning = 3;
+    required uint32 warning_value = 4;
+    optional WarningOption warning_low = 8;
+    optional OptionalSwitcher abnormal_cardiac = 10;
+    optional HeartRateMonitor.AssistSleep assit_sleep = 5;
+    optional OptionalSwitcher sleep_breathe_quality = 9;
+    optional WarningOption warning_sport = 6;
+    optional OptionalSwitcher sleep_breathe_rate = 11;
+}
+
+message SedentaryReminder {
+    required bool on = 1;
+    required Time start_time = 2;
+    required Time end_time = 3;
+    required bool no_disturb_in_launch_break = 4;
+    optional Time launch_break_start_time = 6;
+    optional Time launch_break_end_time = 7;
+    optional OptionalSwitcher stretch_guide = 5;
+}
+
+message PressureMonitor {
+    required bool on = 1;
+    optional WarningOption warning_non_sleep = 2;
+}
+
+message PressureCalibrate {
+
+    enum Code {
+        OK = 0;
+        NOT_WEARING = 1;
+        IN_SPORT = 2;
+        NOT_IN_CALIBRATING = 3;
+        UNKNOWN = 10;
+    }
+
+    message Response {
+        required Code code = 1;
+        optional uint32 need_collect_time = 2;
+    }
+
+    message EvaluationResult {
+        required uint32 value = 1;
+    }
+
+    message CalibrationResult {
+        required Code code = 1;
+        optional uint32 current_pressure = 2;
+    }
+}
+
+message SleepResult {
+
+    message Animal {
+        required uint32 type = 1;
+        optional uint32 current_progress = 2;
+        optional uint32 total_progress = 3;
+    }
+
+    message ExtraData {
+        required uint32 bedtime = 1;
+        required uint32 sleep_time = 2;
+        required uint32 sleep_quality = 3;
+        required uint32 sleep_efficiency = 4;
+        required uint32 breathing = 5;
+    }
+
+    message Section {
+        required Timezone timezone = 1;
+        required uint32 valid_sleep_time = 2;
+        required uint32 sleep_timestamp = 3;
+        required uint32 wakeup_timestamp = 4;
+        required uint32 average_heart_rate = 5;
+        required uint32 average_blood_oxygen = 6;
+        optional ExtraData extra_data = 7;
+    }
+
+    repeated Section section_list = 1;
+    optional Animal animal = 2;
+}
+
+message Goal {
+
+    enum Type {
+        STEP = 1;
+        CALORIE = 2;
+        INTENSITY = 3;
+        STAND = 4;
+    }
+
+    message Status {
+        repeated Goal current_goals = 1;
+        repeated Goal supported_goals = 2;
+    }
+
+    required Type type = 1;
+}
+
+message BasicData {
+    required uint32 steps = 1;
+    required uint32 calories = 2;
+    optional uint32 distance = 3;
+    optional uint32 heart_rate = 4;
+    optional uint32 intensity = 5;
+    optional uint32 valid_stand = 6;
+}
+
+message VitalityData {
+
+    message Item {
+        required Goal.Type type = 1;
+        required uint32 total = 2;
+        optional uint32 interval = 3;
+        repeated uint32 detail = 4;
+    }
+
+    message List {
+        optional uint32 timestamp = 1;
+        repeated Item list = 2;
+    }
+}
+
+message BestSportData {
+
+    message List {
+        repeated BestSportData sport_data_list = 1;
+    }
+
+    required SportType sport_type = 1;
+    required uint32 duration = 2;
+    optional uint32 distance = 3;
+}
+
+message SportTarget {
+    required SportTargetType type = 1;
+    required uint32 value = 2;
+}
+
+message SportCourse {
+    required uint32 sport_course_type = 1;
+    optional uint64 cloud_course_id = 2;
+    required string course_name = 3;
+}
+
+message SportStatus {
+    required SportType sport_type = 1;
+    optional SportType main_sport_type = 11;
+    optional uint32 timestamp = 2;
+    optional Timezone timezone = 3;
+    optional uint32 duration = 4;
+    optional bool paused = 5;
+    optional bool standalone = 6;
+    optional uint32 select_version = 7;
+    optional bool app_launched = 8;
+    repeated SportTarget sport_target_list = 9;
+    optional SportCourse sport_course = 10;
+    optional WearMode wear_mode = 12;
+}
+
+message SportPreRequest {
+    required SportType sport_type = 1;
+    optional SportType main_sport_type = 3;
+    required uint32 support_versions = 2;
+}
+
+message SportPreResponse {
+    required SportResponse.Code code = 1;
+    required uint32 select_version = 2;
+    optional GpsAccuracy gps_accuracy = 3;
+}
+
+message SportRequest {
+    required uint32 timestamp = 1;
+    required Timezone timezone = 2;
+    required SportType sport_type = 3;
+    optional SportType main_sport_type = 9;
+    required SportState state = 4;
+    required bytes ids = 5;
+    optional uint32 support_versions = 6;
+    repeated SportTarget sport_target_list = 7;
+    optional SportCourse sport_course = 8;
+    optional WearMode wear_mode = 10;
+    optional SportExtraData extra_data = 11;
+}
+
+message SportResponse {
+
+    enum Code {
+        OK = 0;
+        BUSY = 1;
+        TYPE_NOT_MATCH = 2;
+        NO_PERMISSION = 3;
+        SPORT_NOT_SUPPORT = 4;
+        LACK_OF_ACCURACY = 5;
+        CHARGING = 6;
+        LOW_BATTERY = 7;
+        VERSION_NOT_SUPPORT = 8;
+        MODE_NOT_MATCH = 9;
+        UNKNOWN = 10;
+    }
+
+    required Code code = 1;
+    required bytes ids = 2;
+    optional SportStatus sport_status = 3;
+    optional GpsAccuracy gps_accuracy = 4;
+    optional uint32 select_version = 5;
+    optional WearMode current_wear_mode = 6;
+    optional SportExtraData extra_data = 7;
+}
+
+message PhoneSportData {
+    required uint32 distance = 1;
+    required uint32 pace = 2;
+    required GpsAccuracy gps_accuracy = 3;
+}
+
+message WearSportData {
+    required uint32 steps = 1;
+    required uint32 calories = 2;
+    required uint32 heart_rate = 3;
+    optional uint32 max_heart_rate = 4;
+    optional uint32 min_heart_rate = 5;
+}
+
+message PhoneSportDataV2D {
+    required GpsAccuracy gps_accuracy = 1;
+    required uint32 timestamp = 2;
+    required double longitude = 3;
+    required double latitude = 4;
+    optional double altitude = 5;
+    optional float speed = 6;
+    optional float bearing = 7;
+    optional float horizontal_accuracy = 8;
+    optional float vertical_accuracy = 9;
+}
+
+message PhoneSportDataV2A {
+    required uint32 duration = 1;
+    required uint32 heart_rate = 2;
+    required uint32 calories = 3;
+    optional uint32 distance = 4;
+    optional uint32 current_pace = 5;
+    optional uint32 average_pace = 6;
+    optional uint32 steps = 7;
+    optional uint32 stride = 8;
+    optional uint32 stride_frequency = 9;
+    optional float rise = 10;
+    optional float decline = 11;
+    optional uint32 reminder_kilometre_duration = 12;
+    optional uint32 reminder_kilometre_pace = 13;
+    optional uint32 reminder_pace = 14;
+    optional uint32 reminder_heart_rate = 15;
+    optional SportTargetType target_type = 16;
+    optional uint32 target_value = 17;
+    optional uint32 current_value = 18;
+    optional HeartRateSection heart_rate_section = 19;
+}
+
+message WearSportDataV2A {
+
+    message ErrorState {
+        optional bool mode_changed = 1;
+        optional uint32 low_battery = 2;
+    }
+
+    required uint32 heart_rate = 1;
+    required uint32 calories = 2;
+    optional uint32 steps = 3;
+    optional uint32 distance = 4;
+    optional ErrorState error_state = 5;
+    optional uint32 stride = 6;
+    optional uint32 revolution_count = 7;
+    optional uint32 frequency = 8;
+    optional uint32 run_style = 9;
+    optional uint32 impact = 10;
+    optional uint32 on_ground = 11;
+    optional uint32 off_ground = 12;
+    optional uint32 on_off_ratio = 13;
+    optional uint32 current_pace = 14;
+    optional float current_speed = 15;
+    optional uint32 vertical_stride_ratio = 16;
+    optional uint32 vertical_amplitude = 17;
+}
+
+message GYMSetting {
+
+    enum Key {
+        CHILD_LOCK = 0;
+        SAFETY_LOCK = 1;
+        DEVICE_LOCK = 2;
+        DEVICE_IN_DEBUG_MODE = 3;
+        SPEED_UP_LIMIT = 4;
+    }
+
+    message List {
+        repeated GYMSetting list = 1;
+    }
+
+    required Key key = 1;
+    required sint32 value = 2;
+}
+
+message GYMRequest {
+    required uint32 timestamp = 1;
+    required Timezone timezone = 2;
+    required SportType sport_type = 3;
+    optional SportType main_sport_type = 9;
+    required SportState state = 4;
+    repeated SportTarget sport_target_list = 5;
+    optional SportCourse sport_course = 6;
+    optional uint32 gym_capability = 7;
+    required bytes ids = 8;
+}
+
+message GYMResponse {
+
+    enum Code {
+        OK = 0;
+        BUSY = 1;
+        TYPE_NOT_MATCH = 2;
+        SPORT_NOT_SUPPORT = 3;
+        LOW_BATTERY = 4;
+        CHILD_LOCK = 5;
+        SAFETY_LOCK = 6;
+        DEVICE_LOCK = 7;
+        DEVICE_IN_DEBUG_MODE = 8;
+        DEVICE_IN_OTA = 9;
+        UNKNOWN = 16;
+    }
+
+    required Code code = 1;
+    optional uint32 gym_capability = 2;
+    required bytes ids = 3;
+    optional SportStatus sport_status = 4;
+}
+
+message GYMAssist {
+    optional uint32 heart_rate = 1;
+    optional float adjust_speed = 2;
+    optional uint32 adjust_pace = 3;
+    optional uint32 adjust_resistance_level = 4;
+}
+
+message GYMData {
+    required uint32 duration = 1;
+    optional uint32 calories = 2;
+    optional uint32 heart_rate = 3;
+    optional uint32 distance = 4;
+    optional uint32 steps = 5;
+    optional uint32 step_frequency = 6;
+    optional uint32 current_pace = 7;
+    optional float speed = 8;
+    optional uint32 current_rpm = 9;
+    optional uint32 revolution_count = 10;
+    optional uint32 current_power = 11;
+    optional uint32 current_resistance_level = 12;
+    optional uint32 jump_count = 13;
+    optional uint32 jump_height = 14;
+    optional uint32 stumble_count = 15;
+}
+
+message ECGRequest {
+
+    enum Type {
+        HANDHELD = 0;
+        FITTING = 1;
+    }
+
+    enum State {
+        START = 0;
+        STOP = 1;
+    }
+
+    required Type type = 1;
+    required State state = 2;
+    optional uint32 expected_duration = 3;
+}
+
+message ECGResponse {
+
+    enum Code {
+        READY = 0;
+        BUSY = 1;
+        FALL_OFF = 2;
+        IN_SPORT = 3;
+        CHARGING = 4;
+        FAIL = 10;
+    }
+
+    required Code code = 1;
+}
+
+message ECGData {
+    required bytes sampling_data = 1;
+    optional uint32 heart_rate = 2;
+}
+
+message ECGStatus {
+
+    enum Status {
+        FALL_OFF = 0;
+        WEAR_ON = 1;
+    }
+
+    required Status status = 1;
+}
+
+message WomenHealth {
+
+    enum Type {
+        NORMAL = 0;
+        MENSTRUATION = 1;
+        OVULATION = 2;
+        EASY_PREGNANCY = 3;
+    }
+
+    message Reminder {
+
+        message List {
+            repeated Reminder list = 1;
+        }
+
+        required Type type = 1;
+        required uint32 advanced_days = 2;
+    }
+
+    message Data {
+
+        message List {
+            required uint32 timestamp = 1;
+            required Timezone timezone = 2;
+            repeated Data list = 3;
+            optional uint32 last_timestamp = 4;
+            optional uint32 last_days = 5;
+            optional uint32 next_timestamp = 6;
+            optional Type next_type = 7;
+        }
+
+        required Type type = 1;
+        required bool forcast = 2;
+    }
+
+    message Section {
+
+        message List {
+            repeated Section list = 1;
+        }
+
+        required uint32 start_timestamp = 1;
+        required uint32 end_timestamp = 2;
+        required uint32 update_timestamp = 3;
+        optional bool is_deleted = 4;
+    }
+
+    required bool enabled = 1;
+    optional bool forcast_on = 2;
+    optional Reminder.List reminder_list = 3;
+    optional Data.List data_list = 4;
+    optional uint32 menstruation_days = 5;
+    optional uint32 menstruation_peroid = 6;
+    optional uint32 init_timestamp = 7;
+    optional Section.List sections = 8;
+}
+
+message MeasureReminder {
+
+    enum Category {
+        NORMAL = 0;
+        MILD = 1;
+        SERIOUS = 2;
+        UNKNOWN = 3;
+    }
+
+    required bool enable = 1;
+    optional Category category = 2;
+    optional ClockMode clock_mode = 3;
+    optional uint32 week_days = 4;
+    repeated Time times = 5;
+}
+
+message VitalityReminder {
+    required bool reach_goal = 1;
+    required bool reach_help = 2;
+}
+
+message ActivityReminder {
+    required bool seven_day_stage = 1;
+    required bool day_upper_limit = 2;
+}
+
+message AxisSensor {
+    required uint64 timestamp = 1;
+    required float x = 2;
+    required float y = 3;
+    required float z = 4;
+}
+
+message WearSensorData {
+    repeated AxisSensor accel = 1;
+    repeated AxisSensor gyro = 2;
+}
+
+message ECGActivation {
+    required bool status = 1;
+}
+
+message MotionInteract {
+    required uint32 vibrate_level = 1;
+}
+
+message NaviRoute {
+
+    message List {
+        repeated NaviRoute list = 1;
+        required uint32 supported_max_number = 2;
+    }
+
+    message AddRequest {
+        required NaviRoute navi_route = 1;
+        required uint32 route_size = 2;
+    }
+
+    message AddResponse {
+        required string id = 1;
+        required PrepareStatus prepare_status = 2;
+        optional uint32 expected_slice_length = 3;
+    }
+
+    message AddResult {
+        required string id = 1;
+        required uint32 code = 2;
+    }
+
+    message RemoveRequest {
+        repeated string router_id_list = 1;
+    }
+
+    message RemoveResponse {
+        required uint32 code = 1;
+    }
+
+    required string id = 1;
+    required string name = 2;
+    required uint32 distance = 3;
+}
+
+message SleepRegularity {
+    required bool on = 1;
+    required uint32 measure_period = 2;
+}
+
+message SleepDisorder {
+    required bool reminder = 1;
+    repeated Time times = 2;
+}
+
+message Research {
+
+    message App {
+
+        message List {
+            repeated App list = 1;
+        }
+
+        required uint32 id = 1;
+        required uint32 type = 2;
+        required bool enable = 3;
+        required uint32 timestamp = 4;
+    }
+
+    message Device {
+
+        message List {
+            repeated Device list = 1;
+        }
+
+        required uint32 type = 1;
+        required bool enable = 2;
+    }
+
+    message CalibrationRequest {
+        required uint32 research_id = 1;
+        required uint32 type = 2;
+    }
+
+    message CalibrationResponse {
+        required uint32 research_id = 1;
+        required uint32 code = 2;
+    }
+
+    message BpSetting {
+        required uint32 research_id = 1;
+        required Time cali_morning = 2;
+        required Time cali_afternoon = 3;
+        required uint32 reminder_frequence = 4;
+    }
+
+    message BPGCalibrationRequest {
+        required uint32 research_id = 1;
+        required uint32 need_calib_times = 2;
+        required uint32 current_calib_times = 3;
+        required uint32 systolic_bp = 4;
+        required uint32 diastolic_bp = 5;
+    }
+
+    message BPGCalibrationStatus {
+        required uint32 calib_success_times = 1;
+        required uint32 calib_success_ts = 2;
+    }
+
+}
+
+message PhoneControlData {
+    optional uint32 user_role = 1;
+    optional uint32 remote_control = 2;
+    optional uint32 vibrate_level = 3;
+}
+
+message WearControlData {
+    optional uint32 key_event = 1;
+}
+
+message Course {
+
+    message Target {
+        required SportTargetType target_type = 1;
+        required uint32 value1 = 2;
+        optional uint32 value2 = 3;
+    }
+
+    message Part {
+        required uint32 type = 1;
+        required uint32 duration = 2;
+        optional Target target = 3;
+    }
+
+    message Detail {
+        required string name = 1;
+        optional uint32 duration = 2;
+        optional uint32 distance = 3;
+        required string description = 4;
+        repeated Part parts = 5;
+    }
+
+    required uint32 type = 1;
+    required uint64 id = 2;
+    optional Detail detail = 3;
+}
+
+message Training {
+
+    message Item {
+        required Course course = 1;
+        required bool finished = 2;
+        optional uint32 timestamp = 3;
+    }
+
+    message Plan {
+        required uint32 timestamp = 1;
+        repeated Item items = 2;
+    }
+
+    required uint32 type = 1;
+    required uint64 id = 2;
+}
+
+message SportExtraData {
+    optional uint32 avg_pace = 1;
+    optional uint32 max_pace = 2;
+    optional float avg_speed = 3;
+    optional float max_speed = 4;
+    optional uint32 avg_frequency = 5;
+    optional uint32 max_frequency = 6;
+    optional uint32 avg_stride = 7;
+    optional int32 degree = 8;
+    optional uint32 main_run_style = 9;
+    optional uint32 forefoot_ratio = 10;
+    optional uint32 heel_ratio = 11;
+    optional uint32 avg_impact = 12;
+    optional uint32 max_impact = 13;
+    optional uint32 avg_on_ground = 14;
+    optional uint32 min_on_ground = 15;
+    optional uint32 avg_off_ground = 16;
+    optional uint32 max_off_ground = 17;
+    optional uint32 avg_on_off_ratio = 18;
+    optional uint32 min_on_off_ratio = 19;
+    optional uint32 max_on_ground = 20;
+    optional uint32 avg_vertical_stride_ratio = 21;
+    optional uint32 min_vertical_stride_ratio = 22;
+    optional uint32 max_vertical_stride_ratio = 23;
+    optional uint32 avg_vertical_amplitude = 24;
+    optional uint32 min_vertical_amplitude = 25;
+    optional uint32 max_vertical_amplitude = 26;
+}

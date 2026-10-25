@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F5F7FB">
+<title>KdSync · 智能穿戴管理终端</title>
+<style>
+:root{
+  --pink:#FF6FA5; --pink-soft:#FFE4EF; --blue:#2563EB; --blue-soft:#E6EEFF;
+  --yellow:#F5B400; --yellow-soft:#FFF3CC; --bg:#F5F7FB; --card:#FFFFFF;
+  --ink:#151A26; --muted:#6B7280; --line:#E5E9F2; --ok:#16A36A; --danger:#EF4444;
+  color-scheme: light;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif}
+body{min-height:100vh;background:
+  radial-gradient(520px 260px at 8% -8%, #FFE1ED 0%, transparent 70%),
+  radial-gradient(640px 320px at 105% 4%, #E3ECFF 0%, transparent 72%),
+  radial-gradient(420px 260px at 50% 112%, #FFF1BF 0%, transparent 75%), var(--bg)}
+button,input,select{font:inherit}
+button{border:0;cursor:pointer}
+.app{max-width:760px;margin:0 auto;padding:18px 16px 92px}
+header{display:flex;align-items:center;gap:12px;padding:4px 2px 18px}
+.logo{width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,var(--pink),#FF9CBD 52%,var(--yellow));
+  display:grid;place-items:center;color:#fff;font-weight:900;font-size:20px;letter-spacing:-1px;
+  box-shadow:0 10px 24px rgba(255,111,165,.28)}
+.brand h1{font-size:22px;line-height:1.1;margin:0;letter-spacing:-.5px}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.brand b{color:var(--blue)}
+.header-pill{margin-left:auto;padding:7px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);
+  font-size:11px;color:var(--muted);box-shadow:0 4px 16px rgba(21,26,38,.04);white-space:nowrap}
+.header-pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#CBD5E1;margin-right:5px}
+.header-pill.on .dot{background:var(--ok);box-shadow:0 0 0 3px rgba(22,163,106,.12)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;
+  box-shadow:0 10px 30px rgba(21,26,38,.045)}
+.hero{background:linear-gradient(135deg,#FFFFFF 0%,#FFF8FC 54%,#FFFDF2 100%);
+  border:1px solid #F2E6EE;overflow:hidden;position:relative}
+.hero:after{content:"";position:absolute;right:-38px;top:-54px;width:170px;height:170px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,111,165,.16),transparent 68%);pointer-events:none}
+.hero-top{display:flex;align-items:flex-start;gap:12px}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--pink);font-weight:800}
+.hero h2{font-size:20px;margin:5px 0 3px;letter-spacing:-.4px}
+.hero .sub{color:var(--muted);font-size:12px}
+.hero-badge{margin-left:auto;background:var(--blue-soft);color:var(--blue);font-size:11px;font-weight:800;
+  padding:7px 9px;border-radius:10px;white-space:nowrap}
+.hero-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.metric{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 12px}
+.metric span{display:block;font-size:10px;color:var(--muted);letter-spacing:.04em}
+.metric b{display:block;font-size:18px;margin-top:2px;letter-spacing:-.4px}
+.metric b small{font-size:11px;font-weight:600;color:var(--muted)}
+.tabs{display:flex;gap:6px;background:#fff;border:1px solid var(--line);padding:5px;border-radius:16px;
+  margin:14px 0;box-shadow:0 6px 18px rgba(21,26,38,.04);position:sticky;top:8px;z-index:5}
+.tabs button{flex:1;border-radius:12px;padding:9px 4px;background:transparent;color:var(--muted);font-size:12px;font-weight:700}
+.tabs button.on{background:linear-gradient(135deg,var(--blue),#4F7DF3);color:#fff;box-shadow:0 5px 14px rgba(37,99,235,.22)}
+.panel{display:none}.panel.on{display:block;animation:in .18s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.section{margin-top:14px}
+.section-head{display:flex;align-items:center;gap:8px;margin:0 2px 9px}
+.section-head h3{font-size:14px;margin:0;letter-spacing:-.2px}
+.section-head .line{flex:1;height:1px;background:var(--line)}
+.section-head .hint{font-size:11px;color:var(--muted)}
+.row{display:flex;gap:9px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.btn{padding:11px 13px;border-radius:12px;background:#fff;border:1px solid var(--line);color:var(--ink);
+  font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:linear-gradient(135deg,var(--blue),#4F7DF3);border-color:transparent;color:#fff;
+  box-shadow:0 8px 18px rgba(37,99,235,.2)}
+.btn.pink{background:linear-gradient(135deg,var(--pink),#FF8AB8);border-color:transparent;color:#fff;
+  box-shadow:0 8px 18px rgba(255,111,165,.2)}
+.btn.yellow{background:var(--yellow-soft);border-color:#F7E2A0;color:#8A6200}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger);border-color:#F7D4D4;background:#FFF7F7}
+.btn:disabled{opacity:.45;pointer-events:none}
+.btn.sm{min-height:34px;padding:7px 10px;font-size:12px;border-radius:10px}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:150px}
+.field label{font-size:11px;color:var(--muted);font-weight:700}
+.field input,.field select{width:100%;border:1px solid var(--line);background:#FAFBFE;border-radius:11px;
+  padding:10px 11px;outline:0;color:var(--ink);font-size:13px}
+.field input:focus,.field select:focus{border-color:#AFC4FF;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+.field input::placeholder{color:#A8B0BF}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;gap:10px;align-items:center;padding:11px;border-radius:14px;background:#FBFCFF;border:1px solid var(--line)}
+.item .avatar{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-weight:900;color:#fff;
+  background:linear-gradient(135deg,var(--blue),#6B93FF);flex:0 0 auto;font-size:13px}
+.item .avatar.pink{background:linear-gradient(135deg,var(--pink),#FFA7C8)}
+.item .avatar.yellow{background:linear-gradient(135deg,#F5B400,#FFD666);color:#6B4A00}
+.item .meta{min-width:0;flex:1}
+.item .meta b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .meta span{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .actions{display:flex;gap:5px;flex:0 0 auto}
+.empty{padding:24px 12px;text-align:center;color:var(--muted);font-size:12px}
+.empty b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px}
+.notice{font-size:11px;color:var(--muted);line-height:1.6;padding:10px 12px;border-radius:12px;background:#FAFBFE;border:1px dashed var(--line)}
+.notice b{color:var(--ink)}
+.badge{display:inline-block;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:800;background:var(--blue-soft);color:var(--blue)}
+.badge.green{background:#E8F8F0;color:#0E8A58}.badge.pink{background:var(--pink-soft);color:#C2185B}
+.badge.yellow{background:var(--yellow-soft);color:#8A6200}.badge.gray{background:#F0F2F6;color:#687386}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.kv{background:#FBFCFF;border:1px solid var(--line);border-radius:13px;padding:11px}
+.kv span{display:block;font-size:10px;color:var(--muted)}
+.kv b{display:block;margin-top:3px;font-size:13px;word-break:break-all}
+.log{height:190px;overflow:auto;background:#101624;color:#C9D6F2;border-radius:14px;padding:11px;
+  font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+.log .p{color:#FFB5D0}.log .b{color:#9CC0FF}.log .y{color:#FFD666}
+.toast{position:fixed;left:50%;bottom:90px;transform:translate(-50%,12px);background:#151A26;color:#fff;
+  padding:11px 15px;border-radius:12px;font-size:12px;opacity:0;pointer-events:none;transition:.2s;z-index:20;max-width:86vw;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.works{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.work{padding:13px;border-radius:16px;border:1px solid var(--line);background:#fff;position:relative;overflow:hidden}
+.work:before{content:"";position:absolute;right:-16px;top:-20px;width:74px;height:74px;border-radius:50%;opacity:.16;background:var(--pink)}
+.work.blue:before{background:var(--blue)}.work.yellow:before{background:var(--yellow)}
+.work h4{margin:0;font-size:14px}.work p{margin:4px 0 10px;color:var(--muted);font-size:11px;line-height:1.45;min-height:32px}
+.work .btn{width:100%;min-height:34px;font-size:11px}
+.work .tag{position:absolute;right:10px;top:10px;font-size:9px;color:var(--muted)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.footer-note{text-align:center;color:#9AA3B2;font-size:10px;padding:18px 0 0}
+@media(min-width:620px){.hero-metrics{gap:14px}.works{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">K</div>
+    <div class="brand">
+      <h1>KdSync</h1>
+      <p>智能穿戴管理终端 · <b>Kldxst 专属适配</b></p>
+    </div>
+    <div class="header-pill" id="topState"><span class="dot"></span><span id="topStateText">未连接</span></div>
+  </header>
+
+  <section class="card hero">
+    <div class="hero-top">
+      <div>
+        <div class="eyebrow">WEARABLE COMMAND CENTER</div>
+        <h2 id="deviceName">等待连接设备</h2>
+        <div class="sub" id="deviceSub">独立蓝牙直连 · 不依赖小米运动健康</div>
+      </div>
+      <div class="hero-badge" id="transportBadge">SPP / BLE</div>
+    </div>
+    <div class="hero-metrics">
+      <div class="metric"><span>电量</span><b id="mBattery">--<small>%</small></b></div>
+      <div class="metric"><span>存储</span><b id="mStorage">--<small>GB</small></b></div>
+      <div class="metric"><span>应用</span><b id="mApps">--<small>个</small></b></div>
+    </div>
+  </section>
+
+  <div class="tabs">
+    <button class="on" data-tab="device">设备</button>
+    <button data-tab="apps">应用</button>
+    <button data-tab="bridge">网桥</button>
+    <button data-tab="settings">设置</button>
+  </div>
+
+  <main>
+    <section class="panel on" id="panel-device">
+      <div class="section">
+        <div class="section-head"><h3>连接设备</h3><div class="line"></div><span class="hint" id="scanHint">未扫描</span></div>
+        <div class="card">
+          <div class="row wrap">
+            <div class="field" style="max-width:150px"><label>传输</label>
+              <select id="transport"><option value="spp">SPP · 稳定</option><option value="ble">BLE · 低功耗</option></select>
+            </div>
+            <div class="field"><label>authkey（32 位十六进制）</label>
+              <input id="authkey" maxlength="32" placeholder="从小米账号或设备详情获取" autocomplete="off">
+            </div>
+            <button class="btn primary" id="btnScan">扫描设备</button>
+          </div>
+          <div class="row" style="margin-top:9px">
+            <button class="btn pink" id="btnConnect" style="flex:1">连接最近设备</button>
+            <button class="btn" id="btnDisconnect">断开</button>
+          </div>
+          <div class="list" id="peerList" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h3>设备概况</h3><div class="line"></div><span class="hint" id="authState">未认证</span></div>
+        <div class="card">
+          <div class="grid2" id="deviceGrid">
+            <div class="kv"><span>型号</span><b>--</b></div>
+            <div class="kv"><span>固件</span><b>--</b></div>
+            <div class="kv"><span>序列号</span><b>--</b></div>
+            <div class="kv"><span>产品代号</span><b>--</b></div>
+          </div>
+          <div class="row wrap" style="margin-top:10px">
+            <button class="btn" id="btnRefresh">刷新状态</button>
+            <button class="btn yellow" id="btnSync">同步时间</button>
+            <button class="btn" id="btnAppsQuick">管理应用</button>
+          </div>
+          <div class="notice" style="margin-top:10px">KdSync 使用真实 L1/SAR + L2 + WearPacket 协议直连。首次连接需 authkey；未认证时只能扫描和握手，不能读设备数据。</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h3>通知与调试</h3><div class="line"></div></div>
+        <div class="card">
+          <div class="row wrap">
+            <div class="field"><label>标题</label><input id="notifyTitle" value="KdSync" maxlength="64"></div>
+            <div class="field"><label>内容</label><input id="notifyBody" value="来自 KdSync 的测试通知" maxlength="400"></div>
+            <button class="btn pink" id="btnNotify">推送到手表</button>
+          </div>
+          <div class="row" style="margin-top:9px">
+            <button class="btn ghost" id="btnLogs">刷新协议日志</button>
+            <button class="btn ghost" id="btnPermissions">检查权限</button>
+          </div>
+          <div class="log" id="deviceLog" style="margin-top:10px">等待连接…</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-apps">
+      <div class="section">
+        <div class="section-head"><h3>Kldxst 作品</h3><div class="line"></div><span class="badge pink">专属适配</span></div>
+        <div class="works" id="workList"></div>
+        <div class="notice" style="margin-top:9px">作品安装包由你选择本地 <b>.rpk</b>。KdSync 会先做 manifest 体检，再按 ThirdpartyApp → MASS 流程推送。</div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h3>已安装应用</h3><div class="line"></div><span class="hint" id="appsHint">未读取</span></div>
+        <div class="card">
+          <div class="row">
+            <button class="btn primary" id="btnLoadApps" style="flex:1">读取应用列表</button>
+            <button class="btn yellow" id="btnPickApp">安装 RPK</button>
+          </div>
+          <div class="list" id="appList" style="margin-top:10px"><div class="empty"><b>还没有读取</b>连接并认证设备后，点击“读取应用列表”。</div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h3>表盘管理</h3><div class="line"></div><span class="hint" id="watchHint">未读取</span></div>
+        <div class="card">
+          <div class="row">
+            <button class="btn primary" id="btnLoadWatches" style="flex:1">读取表盘</button>
+            <button class="btn yellow" id="btnPickWatch">安装 .face</button>
+          </div>
+          <div class="field" style="margin-top:9px"><label>新表盘 id（从 .face 资源包 manifest 读取）</label><input id="watchId" placeholder="例如 1a2b3c4d"></div>
+          <div class="list" id="watchList" style="margin-top:10px"><div class="empty"><b>还没有读取</b>读取后可以切换或卸载表盘。</div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h3>安装队列</h3><div class="line"></div></div>
+        <div class="card"><div class="notice" id="installStatus">空闲。安装过程中请保持屏幕常亮和蓝牙连接。</div></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-bridge">
+      <div class="section">
+        <div class="section-head"><h3>通用网桥</h3><div class="line"></div><span class="badge" id="bridgeBadge">未启动</span></div>
+        <div class="card">
+          <div class="row">
+            <button class="btn primary" id="btnBridgeStart" style="flex:1">启动网桥</button>
+            <button class="btn" id="btnBridgeStop">停止</button>
+            <button class="btn ghost" id="btnBridgeTest">自检</button>
+          </div>
+          <div class="notice" style="margin-top:9px">网桥承载在 <b>ThirdpartyApp.MessageContent</b>（type=20/id=8/9），不是把 JSON 直接塞进 L1。支持 Kldxst 作品与通用 HTTP 代理策略。</div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-head"><h3>策略</h3><div class="line"></div></div>
+        <div class="card">
+          <div class="field"><label>允许访问的域名（逗号分隔）</label><input id="polAllow" placeholder="kldxst.me,bandbbs.cn"></div>
+          <div class="row wrap" style="margin-top:9px">
+            <div class="field" style="max-width:150px"><label>超时 ms</label><input id="polTimeout" type="number" value="8000"></div>
+            <div class="field" style="max-width:150px"><label>最大响应 KB</label><input id="polBytes" type="number" value="512"></div>
+            <button class="btn" id="btnPolicy">保存策略</button>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-head"><h3>桥接日志</h3><div class="line"></div><button class="btn sm ghost" id="btnBridgeLogs">刷新</button></div>
+        <div class="log" id="bridgeLog">网桥未启动。</div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-settings">
+      <div class="section">
+        <div class="section-head"><h3>小米账号</h3><div class="line"></div><span class="hint">用于获取 authkey / 设备列表</span></div>
+        <div class="card">
+          <div class="row wrap">
+            <div class="field"><label>账号</label><input id="miUser" placeholder="小米账号 / 手机号" autocomplete="username"></div>
+            <div class="field"><label>密码</label><input id="miPass" type="password" placeholder="密码" autocomplete="current-password"></div>
+            <button class="btn primary" id="btnLogin">登录</button>
+          </div>
+          <div class="row" style="margin-top:9px">
+            <button class="btn" id="btnDevices">刷新设备列表</button>
+            <button class="btn ghost" id="btnLogout">退出登录</button>
+          </div>
+          <div class="list" id="cloudList" style="margin-top:10px"></div>
+          <div class="notice" style="margin-top:9px">账号登录走小米 STS（miothealth），登录成功后点云端设备即可把 authkey 写入本机。设备列表接口受小米账号风控影响时，可直接手动填写 authkey。</div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-head"><h3>权限与安全</h3><div class="line"></div></div>
+        <div class="card">
+          <div class="grid2" id="permGrid">
+            <div class="kv"><span>蓝牙扫描</span><b>--</b></div>
+            <div class="kv"><span>蓝牙连接</span><b>--</b></div>
+            <div class="kv"><span>通知权限</span><b>--</b></div>
+            <div class="kv"><span>通知使用权</span><b>--</b></div>
+          </div>
+          <div class="row" style="margin-top:9px">
+            <button class="btn primary" id="btnPermReq" style="flex:1">申请权限</button>
+            <button class="btn" id="btnNotifyAccess">通知使用权</button>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-head"><h3>关于 KdSync</h3><div class="line"></div></div>
+        <div class="card">
+          <div class="kv"><span>版本</span><b id="aboutVersion">2.0.0</b></div>
+          <div class="kv" style="margin-top:8px"><span>协议</span><b class="mono">L1 SAR · L2 channel/opcode · WearPacket protobuf</b></div>
+          <div class="kv" style="margin-top:8px"><span>传输</span><b class="mono">SPP 1101 / BLE FE95 · 005f / 005e / 0050</b></div>
+          <div class="notice" style="margin-top:9px">KdSync 是独立的管理终端，不修改手环固件、不绕过账号权限；authkey 与账号凭据只保存在本机加密存储。</div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div class="footer-note">KdSync 2.0 · Made for Kldxst wearable works</div>
+</div>
+
+<input type="file" id="filePicker" accept=".rpk,application/zip,application/octet-stream" style="display:none">
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  var NATIVE = typeof window.Kldxst !== 'undefined';
+  var TOKEN = window.__kldxstToken || '';
+  if (!TOKEN && NATIVE) { try { TOKEN = window.Kldxst.sessionToken() || ''; } catch(e){} }
+  var seq=0, pending={}, state={}, selectedPeer=null, selectedWork=null, fileTarget=null;
+  var WORKS=[
+    {name:'幽径', desc:'叙事解谜 · 声音互动', color:'pink', tag:'叙事'},
+    {name:'拆招', desc:'动作拆解 · 节奏挑战', color:'blue', tag:'动作'},
+    {name:'神之一手', desc:'棋局推演 · 策略对弈', color:'yellow', tag:'策略'},
+    {name:'星环', desc:'太空巡航 · 轻量冒险', color:'blue', tag:'冒险'},
+    {name:'末日之后', desc:'生存叙事 · 多线选择', color:'pink', tag:'生存'},
+    {name:'诡秘之主', desc:'克苏鲁风 · 调查推理', color:'yellow', tag:'推理'}
+  ];
+
+  window.KldxstOnResult=function(id,json){
+    var cb=pending[id]; if(!cb) return; delete pending[id];
+    var p; try{p=JSON.parse(json)}catch(e){p={ok:false,message:'回包解析失败'}}
+    cb(p);
+  };
+  function call(method,args,timeout){
+    if(!NATIVE) return Promise.resolve({ok:false,message:'请在 KdSync 应用内使用'});
+    if(!TOKEN){ try{TOKEN=window.Kldxst.sessionToken()||''}catch(e){} }
+    if(!TOKEN) return Promise.resolve({ok:false,message:'会话未就绪，请重新打开应用'});
+    return new Promise(function(resolve){
+      var id='r'+(++seq); pending[id]=resolve;
+      try{ window.Kldxst.call(id,method,JSON.stringify(Object.assign({},args||{},{t:TOKEN}))); }
+      catch(e){ delete pending[id]; resolve({ok:false,message:String(e)}); }
+      setTimeout(function(){ if(pending[id]){delete pending[id];resolve({ok:false,message:'接口超时'})} }, timeout||45000);
+    });
+  }
+  function $(id){return document.getElementById(id)}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  var toastTimer=null;
+  function toast(msg){var t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('on')},2400)}
+  function fmtBytes(n){if(!n||n<0)return '--';return (n/1073741824).toFixed(1)}
+  function setBusy(on,text){ document.querySelectorAll('.btn').forEach(function(b){if(on)b.dataset.disabled='1';else delete b.dataset.disabled;b.disabled=!!on}); if(text)toast(text); }
+  function badge(text,cls){return '<span class="badge '+cls+'">'+esc(text)+'</span>'}
+  function handle(r,okText){
+    if(!r){toast('没有回包');return false}
+    if(!r.ok){toast(r.message||('错误 '+(r.error||'')));return false}
+    if(okText)toast(okText); return true;
+  }
+
+  function renderWorks(){
+    $('workList').innerHTML=WORKS.map(function(w,i){
+      return '<div class="work '+w.color+'"><span class="tag">'+esc(w.tag)+'</span><h4>'+esc(w.name)+'</h4><p>'+esc(w.desc)+'</p>'+
+        '<button class="btn ghost" data-work="'+i+'">选择安装包</button></div>';
+    }).join('');
+    $('workList').querySelectorAll('button[data-work]').forEach(function(b){
+      b.onclick=function(){selectedWork=WORKS[+b.dataset.work];fileTarget='work';$('filePicker').click()};
+    });
+  }
+
+  function renderStatus(d){
+    state=d||{};
+    var snap=d.snapshot||{}, peer=d.peer;
+    var connected=!!d.connected, authed=!!d.authenticated;
+    var name=peer&&peer.name?peer.name:(snap.model||'等待连接设备');
+    $('deviceName').textContent=name;
+    $('deviceSub').textContent=connected?(peer&&peer.address?peer.address+' · '+(d.transport||'').toUpperCase():'已连接'):'独立蓝牙直连 · 不依赖小米运动健康';
+    $('topState').classList.toggle('on',connected&&authed);
+    $('topStateText').textContent=connected?(authed?'已认证':'已连接 · 待认证'):'未连接';
+    $('transportBadge').textContent=(d.transport||'spp').toUpperCase()+' · '+(authed?'READY':'HANDSHAKE');
+    $('mBattery').innerHTML=(snap.battery>=0?snap.battery:'--')+'<small>%</small>';
+    $('mStorage').innerHTML=(snap.storageTotal?fmtBytes(snap.storageFree):'--')+'<small>GB 可用</small>';
+    $('mApps').innerHTML=(d.apps?d.apps.length:'--')+'<small>个</small>';
+    $('authState').textContent=authed?'authkey 已认证':(connected?'已连接，等待 authkey':'未认证');
+    var grid=$('deviceGrid');
+    if(snap.available){
+      grid.innerHTML='<div class="kv"><span>型号</span><b>'+esc(snap.model||'--')+'</b></div>'+
+        '<div class="kv"><span>固件</span><b>'+esc(snap.firmware||'--')+'</b></div>'+
+        '<div class="kv"><span>序列号</span><b>'+esc(snap.serial||'--')+'</b></div>'+
+        '<div class="kv"><span>产品代号</span><b>'+esc(snap.product||'--')+'</b></div>';
+    }
+    if(d.lastError) $('deviceLog').textContent='错误：'+d.lastError;
+    if(d.apps&&d.apps.length) renderApps(d.apps);
+  }
+
+  function renderPeers(peers){
+    if(!peers||!peers.length){$('peerList').innerHTML='<div class="empty"><b>没有发现设备</b>请确认手环已开机、蓝牙已配对，或先强制停止小米运动健康。</div>';return}
+    $('peerList').innerHTML=peers.map(function(p,i){
+      return '<div class="item"><div class="avatar '+(p.xiaomi?'pink':'')+'">'+(p.xiaomi?'MI':'BT')+'</div>'+
+        '<div class="meta"><b>'+esc(p.name||'未命名设备')+'</b><span>'+esc(p.address)+' · RSSI '+esc(p.rssi)+'</span></div>'+
+        '<div class="actions"><button class="btn sm primary" data-peer="'+i+'">连接</button></div></div>';
+    }).join('');
+    $('peerList').querySelectorAll('button[data-peer]').forEach(function(b){
+      b.onclick=function(){selectedPeer=peers[+b.dataset.peer];connectPeer(selectedPeer)};
+    });
+  }
+
+  function renderApps(apps){
+    if(!apps||!apps.length){$('appList').innerHTML='<div class="empty"><b>设备上没有第三方应用</b>可以安装一个 Kldxst 作品试试。</div>';$('appsHint').textContent='0 个';return}
+    $('appsHint').textContent=apps.length+' 个';
+    $('appList').innerHTML=apps.map(function(a,i){
+      return '<div class="item"><div class="avatar yellow">'+(a.name||'A').slice(0,1)+'</div>'+
+        '<div class="meta"><b>'+esc(a.name||a.package)+'</b><span>'+esc(a.package)+' · v'+esc(a.versionCode)+'</span></div>'+
+        '<div class="actions"><button class="btn sm" data-launch="'+i+'">启动</button>'+
+        (a.canRemove?'<button class="btn sm danger" data-remove="'+i+'">卸载</button>':'')+'</div></div>';
+    }).join('');
+    $('appList').querySelectorAll('button[data-launch]').forEach(function(b){
+      b.onclick=async function(){handle(await call('apps.launch',{package:apps[+b.dataset.launch].package}),'已发送启动命令')};
+    });
+    $('appList').querySelectorAll('button[data-remove]').forEach(function(b){
+      b.onclick=async function(){if(!confirm('卸载 '+apps[+b.dataset.remove].name+'？'))return;
+        var r=await call('apps.remove',{package:apps[+b.dataset.remove].package});if(handle(r,'已发送卸载命令')){await refreshStatus();await loadApps()}};
+    });
+  }
+
+  function renderWatches(list){
+    if(!list||!list.length){$('watchList').innerHTML='<div class="empty"><b>没有读取到表盘</b>或设备不支持表盘列表。</div>';$('watchHint').textContent='0 个';return}
+    $('watchHint').textContent=list.length+' 个';
+    $('watchList').innerHTML=list.map(function(w,i){
+      return '<div class="item"><div class="avatar blue">◷</div><div class="meta"><b>'+esc(w.name||w.id)+'</b>'+
+        '<span>'+esc(w.id)+' · v'+esc(w.versionCode)+(w.current?' · 当前':'')+'</span></div>'+
+        '<div class="actions">'+(w.current?'<span class="badge green">使用中</span>':'<button class="btn sm" data-wset="'+i+'">切换</button>')+
+        (w.canRemove?'<button class="btn sm danger" data-wdel="'+i+'">删除</button>':'')+'</div></div>';
+    }).join('');
+    $('watchList').querySelectorAll('button[data-wset]').forEach(function(b){b.onclick=async function(){
+      var r=await call('watchfaces.set',{id:list[+b.dataset.wset].id});if(handle(r,'已切换表盘'))loadWatches();}});
+    $('watchList').querySelectorAll('button[data-wdel]').forEach(function(b){b.onclick=async function(){
+      if(!confirm('删除表盘 '+list[+b.dataset.wdel].name+'？'))return;
+      var r=await call('watchfaces.remove',{id:list[+b.dataset.wdel].id});handle(r,'已发送删除命令')}});
+  }
+  async function loadWatches(){var r=await call('watchfaces.list',{},60000);if(handle(r,'表盘列表已更新')){renderStatus(r.data);renderWatches(r.data.watchFaces||[])}}
+  async function refreshStatus(){var r=await call('device.status');if(r.ok)renderStatus(r.data);return r}
+  async function loadApps(){var r=await call('apps.list',{},60000);if(handle(r,'应用列表已更新')){renderStatus(r.data);renderApps(r.data.apps||[])}}
+  async function connectPeer(p){
+    setBusy(true,'正在连接 '+p.address+'…');
+    var r=await call('device.connect',{address:p.address,transport:$('transport').value,authkey:$('authkey').value.trim()},60000);
+    setBusy(false);
+    if(handle(r,'连接成功')){renderStatus(r.data);$('scanHint').textContent='已连接';}
+  }
+
+  document.querySelectorAll('.tabs button').forEach(function(b){
+    b.onclick=function(){
+      document.querySelectorAll('.tabs button').forEach(function(x){x.classList.toggle('on',x===b)});
+      document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('on',p.id==='panel-'+b.dataset.tab)});
+    };
+  });
+
+  $('btnScan').onclick=async function(){
+    setBusy(true,'正在扫描附近设备…');
+    var r=await call('device.scan',{durationMs:9000},20000);
+    setBusy(false);
+    if(handle(r,'扫描完成')){renderPeers(r.data.peers||[]);$('scanHint').textContent=(r.data.peers||[]).length+' 台'};
+  };
+  $('btnConnect').onclick=async function(){
+    if(selectedPeer)return connectPeer(selectedPeer);
+    var peers=await call('device.scan',{durationMs:6000},15000);
+    if(handle(peers,'扫描完成')){renderPeers(peers.data.peers||[]);$('scanHint').textContent='请选择设备'};
+  };
+  $('btnDisconnect').onclick=async function(){var r=await call('device.close');if(handle(r,'已断开')){renderStatus({connected:false,snapshot:{},apps:[]});$('peerList').innerHTML=''}};
+  $('btnRefresh').onclick=async function(){var r=await call('device.refresh',{},30000);if(handle(r,'设备状态已刷新'))renderStatus(r.data)};
+  $('btnSync').onclick=async function(){var r=await call('device.syncTime',{is24Hour:true});handle(r,'已发送对时命令')};
+  $('btnAppsQuick').onclick=function(){document.querySelector('.tabs button[data-tab="apps"]').click()};
+  $('btnNotify').onclick=async function(){
+    var r=await call('notify.push',{title:$('notifyTitle').value,body:$('notifyBody').value,appName:'KdSync'});
+    handle(r,'通知已推送');
+  };
+  $('btnLogs').onclick=async function(){
+    var r=await call('device.frames',{limit:80});
+    if(r.ok){$('deviceLog').textContent=(r.data.frames||[]).join('\n')||'暂无日志'}
+  };
+  $('btnPermissions').onclick=async function(){
+    var r=await call('permissions.status');
+    if(r.ok){var d=r.data;$('permGrid').innerHTML=
+      '<div class="kv"><span>蓝牙扫描</span><b>'+(d.bluetoothScan?'已授权':'未授权')+'</b></div>'+
+      '<div class="kv"><span>蓝牙连接</span><b>'+(d.bluetoothConnect?'已授权':'未授权')+'</b></div>'+
+      '<div class="kv"><span>通知权限</span><b>'+(d.notifications?'已授权':'未授权')+'</b></div>'+
+      '<div class="kv"><span>通知使用权</span><b>'+(d.notificationAccess?'已授权':'未授权')+'</b></div>';}
+  };
+  $('btnPermReq').onclick=async function(){await call('permissions.request');setTimeout($('btnPermissions').click,300)};
+  $('btnNotifyAccess').onclick=async function(){await call('permissions.notificationAccess')};
+
+  $('btnLoadApps').onclick=loadApps;
+  $('btnLoadWatches').onclick=loadWatches;
+  $('btnPickApp').onclick=function(){selectedWork=null;fileTarget='app';$('filePicker').click()};
+  $('btnPickWatch').onclick=function(){fileTarget='watchface';$('filePicker').click()};
+  $('filePicker').onchange=function(){
+    var f=this.files&&this.files[0]; if(!f)return;
+    if(f.size>32*1024*1024){toast('文件超过 32MB，WebView 传输请改用云端 URL');return}
+    var target=fileTarget||'app';
+    var reader=new FileReader();
+    reader.onload=async function(){
+      var bytes=new Uint8Array(reader.result), binary='', chunk=0x8000;
+      for(var i=0;i<bytes.length;i+=chunk){binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk))}
+      var b64=btoa(binary);
+      setBusy(true,'正在体检并安装 '+f.name+'…');
+      $('installStatus').textContent='0% · 正在发送 '+f.name;
+      var r;
+      if(target==='watchface'){
+        r=await call('watchfaces.installBase64',{data:b64,name:f.name,id:$('watchId').value.trim()},180000);
+      }else{
+        r=await call('apps.installBase64',{data:b64,name:f.name,package:selectedWork?selectedWork.package||'':''},180000);
+      }
+      setBusy(false); $('installStatus').textContent=r.ok?('完成：'+(r.data.message||'安装成功')):('失败：'+(r.message||'未知错误'));
+      if(handle(r,'安装流程结束')){await refreshStatus();if(target==='watchface')await loadWatches();else await loadApps()}
+    };
+    reader.readAsArrayBuffer(f);
+    this.value='';
+  };
+
+  async function loadBridge(){
+    var r=await call('bridge.status');
+    if(r.ok){var d=r.data;$('bridgeBadge').textContent=d.running?'运行中':'未启动';$('bridgeBadge').className='badge '+(d.running?'green':'gray');}
+  }
+  $('btnBridgeStart').onclick=async function(){var r=await call('bridge.start',{autoStart:true});if(handle(r,'网桥已启动'))loadBridge()};
+  $('btnBridgeStop').onclick=async function(){var r=await call('bridge.stop');if(handle(r,'网桥已停止'))loadBridge()};
+  $('btnBridgeTest').onclick=async function(){var r=await call('bridge.selftest');if(r.ok){toast('自检：'+(r.data.pass||0)+' 通过 / '+(r.data.fail||0)+' 失败')}};
+  $('btnBridgeLogs').onclick=async function(){var r=await call('bridge.logs',{limit:120});if(r.ok)$('bridgeLog').textContent=(r.data.lines||[]).join('\n')||'暂无日志'};
+  $('btnPolicy').onclick=async function(){
+    var r=await call('bridge.policy',{policy:{allowHosts:$('polAllow').value.split(',').map(function(s){return s.trim()}).filter(Boolean),timeoutMs:+$('polTimeout').value||8000,maxResponseBytes:(+$('polBytes').value||512)*1024}});
+    handle(r,'策略已保存');
+  };
+
+  $('btnLogin').onclick=async function(){
+    var r=await call('account.login',{user:$('miUser').value.trim(),password:$('miPass').value},60000);
+    if(handle(r,'登录成功')){renderCloud(r.data.devices||[]);}
+  };
+  $('btnDevices').onclick=async function(){var r=await call('account.devices');if(handle(r,'设备列表已更新'))renderCloud(r.data.devices||[])};
+  $('btnLogout').onclick=async function(){var r=await call('account.logout');handle(r,'已退出')};
+  function renderCloud(list){
+    if(!list.length){$('cloudList').innerHTML='<div class="empty">没有云端设备或接口未返回列表</div>';return}
+    $('cloudList').innerHTML=list.map(function(d,i){return '<div class="item"><div class="avatar pink">MI</div><div class="meta"><b>'+esc(d.name||d.model||'小米设备')+'</b><span>'+esc(d.mac||d.did||'')+'</span></div><div class="actions"><button class="btn sm" data-cloud="'+i+'">使用</button></div></div>'}).join('');
+    $('cloudList').querySelectorAll('button[data-cloud]').forEach(function(b){b.onclick=async function(){
+      var r=await call('account.use',{did:list[+b.dataset.cloud].did});if(handle(r,'已保存设备与 authkey')){$('authkey').value=(r.data.device&&r.data.device.authkey)||'';}
+    }});
+  }
+
+  renderWorks();
+  (async function boot(){
+    var h=await call('hello');
+    if(h.ok){$('aboutVersion').textContent=(h.data.app&&h.data.app.versionName)||'2.0.0';}
+    await refreshStatus();
+    await loadBridge();
+    $('btnLogs').click();
+  })();
+})();
+</script>
+</body>
+</html>

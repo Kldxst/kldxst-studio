@@ -1,0 +1,35 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+message Calendar {
+
+    enum CalendarID {
+        SYNC_CALENDAR_INFO = 0;
+        SYNC_CALENDAR_INFO_LIST = 1;
+        WEAR_REQUEST = 2;
+    }
+
+    oneof payload {
+        CalendarInfo calendar_info = 1;
+        CalendarInfo.List calendar_info_list = 2;
+    }
+}
+
+message CalendarInfo {
+
+    message List {
+        repeated CalendarInfo list = 1;
+        optional bool disable = 2;
+    }
+
+    required string title = 1;
+    required string description = 2;
+    required string location = 3;
+    required uint32 start = 4;
+    required uint32 end = 5;
+    required bool all_day = 6;
+    required int32 reminder_minutes = 7;
+}

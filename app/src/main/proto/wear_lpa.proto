@@ -1,0 +1,98 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+enum TelecomOperator {
+    CHINA_MOBILE = 1;
+    CHINA_UNICOM = 2;
+    CHINA_TELECOM = 3;
+}
+
+message Lpa {
+    
+    enum LpaID {
+        COMMAND = 0;
+        GET_EUICC_INFO = 1;
+        GET_PROFILE_LIST = 2;
+        OPERATE_PROFILE = 3;
+        REPORT_OPERATE_RESULT = 4;
+        PREPARE_DOWNLOAD_PROFILE = 5;
+        DOWNLOAD_PROFILE = 6;
+        REPORT_DOWNLOAD_PROGRESS = 7;
+        REQUEST_HTTP = 8;
+        RESPONSE_HTTP = 9;
+    }
+
+    oneof payload {
+        string data = 1;
+        EuiccInfo euicc_info = 2;
+        Profile.List profile_list = 3;
+        ProfileOperator profile_operator = 4;
+        OperateResult operate_result = 5;
+        ProfilePrepare profile_prepare = 6;
+        ProfileDownload profile_download = 7;
+        DownloadProgress download_result = 8;
+        HttpRequest http_request = 9;
+        HttpResponse http_response = 10;
+    }
+}
+
+message EuiccInfo {
+    required bytes eid = 1;
+    required string imei = 2;
+}
+
+message Profile {
+
+    message List {
+        repeated Profile list = 1;
+    }
+
+    required bytes iccid = 1;
+    required string imei = 2;
+    required string name = 3;
+    required bool enable = 4;
+}
+
+message ProfileOperator {
+
+    enum Cmd {
+        ENABLE = 0;
+        DISABLE = 1;
+        DELETE = 2;
+    }
+
+    required Cmd cmd = 1;
+    required bytes iccid = 2;
+}
+
+message OperateResult {
+    required bool success = 1;
+}
+
+message ProfilePrepare {
+    required TelecomOperator telecom_operator = 1;
+}
+
+message ProfileDownload {
+    required string activation_code = 1;
+    required string confirmation_code = 2;
+}
+
+message DownloadProgress {
+    required int32 progress = 1;
+}
+
+message HttpRequest {
+    required uint64 xid = 1;
+    required string url = 2;
+    required string payload = 3;
+}
+
+message HttpResponse {
+    required uint64 xid = 1;
+    required int32 status_code = 2;
+    required string result = 3;
+}

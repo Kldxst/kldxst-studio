@@ -47,19 +47,24 @@ class StudioService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         Hub.init(this)
-        Hub.wear.onFrame = { frame ->
-            val type = Hub.protocol.ops["bridge"]
-            if (type != null && frame.type == type) {
-                val addr = Hub.wear.peer?.address ?: "unknown"
-                val text = runCatching { String(frame.payload, Charsets.UTF_8) }.getOrNull()
+        // 网桥的真实承载是 ThirdpartyApp.MessageContent（type=20, id=9 收 / id=8 发）。
+        Hub.wearController.session.onPacket { packet ->
+            if (packet.type.number == 20 && packet.id == 9 && packet.hasThirdpartyApp()) {
+                val msg = packet.thirdpartyApp.messageContent
+                val basic = msg.basicInfo
+                val text = runCatching { msg.content.toStringUtf8() }.getOrNull()
                 if (text != null) {
-                    // 网桥的 HTTP 请求是阻塞的，不能占用蓝牙回调线程。
+                    val addr = Hub.wear.peer?.address ?: "unknown"
                     lifecycleScope.launch(Dispatchers.IO) {
                         runCatching {
-                            Hub.bridge.onFrame(addr, BuildConfig.APPLICATION_ID, text) { reply ->
+                            Hub.bridge.onFrame(addr, basic.packageName, text) { reply ->
                                 lifecycleScope.launch {
                                     runCatching {
-                                        Hub.wear.sendFrame(type, FrameCodec.utf8(reply))
+                                        Hub.wearController.sendWearMessage(
+                                            basic.packageName,
+                                            basic.fingerprint.toByteArray(),
+                                            reply.toByteArray(Charsets.UTF_8)
+                                        )
                                     }.onFailure { Hub.log.add("网桥回包失败：${it.message}") }
                                 }
                             }
@@ -121,11 +126,12 @@ class StudioService : LifecycleService() {
                 delay(30_000)
                 continue
             }
-            if (!Hub.wear.connected) {
+            if (!Hub.wearController.connected) {
                 val transport = runCatching { Vault.get("device.transport") }.getOrNull() ?: "spp"
+                val key = runCatching { Vault.get("authkey") }.getOrNull()
                 updateNotification("正在连接 ${address}…")
                 try {
-                    if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
+                    Hub.wearController.connect(address, transport, key)
                     Hub.lastError = null
                     updateNotification("已连接 ${Hub.wear.peer?.name ?: address}")
                     Hub.log.add("已连接 $address（$transport）")
@@ -139,11 +145,11 @@ class StudioService : LifecycleService() {
                     continue
                 }
             }
-            if (Hub.wear.connected && Hub.wear.authState == "none") {
+            if (Hub.wearController.connected && !Hub.wearController.authenticated) {
                 val key = runCatching { Vault.get("authkey") }.getOrNull()
                 if (!key.isNullOrBlank()) {
-                    runCatching { Hub.wear.auth(key) }
-                        .onSuccess { Hub.log.add("authkey ${it.optString("state")}") }
+                    runCatching { Hub.wearController.authenticate(key) }
+                        .onSuccess { Hub.log.add("authkey 认证成功") }
                         .onFailure { Hub.log.add("authkey 握手失败：${it.message}") }
                 }
             }
@@ -155,7 +161,7 @@ class StudioService : LifecycleService() {
         Hub.bridgeRunning = false
         loopJob?.cancel()
         loopJob = null
-        Hub.wear.close()
+        Hub.wearController.disconnect()
         Hub.log.add("服务停止")
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
@@ -166,7 +172,7 @@ class StudioService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, StudioApp.CHANNEL_SERVICE)
-            .setContentTitle("K社工坊")
+            .setContentTitle("KdSync")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_launcher)
             .setOngoing(true)
@@ -186,7 +192,7 @@ class StudioService : LifecycleService() {
         Hub.bridgeRunning = false
         loopJob?.cancel()
         loopJob = null
-        Hub.wear.onFrame = null
+        Hub.wearController.session.clearPacketListeners()
         super.onDestroy()
     }
 

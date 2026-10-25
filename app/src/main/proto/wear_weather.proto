@@ -1,0 +1,106 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+message Weather {
+
+    enum WeatherID {
+        LATEST_WEATHER = 0;
+        DAILY_FORECAST = 1;
+        HOURLY_FORECAST = 2;
+        WEAR_REQUEST = 3;
+        SET_PRESSURE = 4;
+        GET_CITY_KEYS = 5;
+        UPDATE_CITY_KEYS = 6;
+        ADD_CITY_KEY = 7;
+        REMOVE_CITY_KEYS = 8;
+        GET_CONFIG = 9;
+        SET_CONFIG = 10;
+    }
+
+    oneof payload {
+        WeatherLatest latest = 1;
+        WeatherForecast forecast = 2;
+        float pressure = 3;
+        CityKey.List city_key_list = 4;
+        CityKey city_key = 5;
+        WeatherConfig weather_config = 6;
+    }
+}
+
+message CityKey {
+    
+    message List {
+        repeated CityKey list = 1;
+    }
+
+    required string location_key = 1;
+    required string city_name = 2;
+}
+
+message WeatherId {
+    required string pub_time = 1;
+    required string city_name = 2;
+    required string location_name = 3;
+    required string location_key = 4;
+    optional bool is_current_location = 5;
+}
+
+message WeatherLatest {
+    required WeatherId id = 1;
+    required uint32 weather = 2;
+    required KeyValue temperature = 3;
+    required KeyValue humidity = 4;
+    required KeyValue wind_info = 5;
+    required KeyValue uvindex = 6;
+    required KeyValue aqi = 7;
+    required Alerts.List alerts_list = 8;
+    optional float pressure = 9;
+}
+
+message WeatherForecast {
+
+    message Data {
+
+        message List {
+            repeated Data list = 1;
+        }
+
+        required KeyValue aqi = 1;
+        optional RangeValue weather = 2;
+        optional RangeValue temperature = 3;
+        required string temperature_unit = 4;
+        optional SunRiseSet sun_rise_set = 5;
+        optional KeyValue wind_info = 6;
+    }
+
+    required WeatherId id = 1;
+    required Data.List data_list = 2;
+}
+
+message Alerts {
+
+    message List {
+        repeated Alerts list = 1;
+    }
+
+    required string type = 1;
+    required string level = 2;
+    required string title = 3;
+    required string detail = 4;
+    required string id = 5;
+}
+
+message SunRiseSet {
+    required string sun_rise = 1;
+    required string sun_set = 2;
+}
+
+message WeatherConfig {
+    optional TemperatureUnit temperature_unit = 1;
+    optional OptionalSwitcher alert = 2;
+}

@@ -42,6 +42,11 @@ object Hub {
 
     val wear: MiWear by lazy { MiWear(app) { line -> log.add("[链路] $line") } }
 
+    /** 真实 MiWear L1/L2/PB 会话与设备管理门面。 */
+    val wearController: WearController by lazy {
+        WearController(wear) { line -> log.add("[协议] $line") }
+    }
+
     /** 小米账号：登录后拿 ssecurity / serviceToken，再取设备 authkey */
     val account: MiLogin by lazy { MiLogin { line -> log.add("[账号] $line") } }
 
@@ -133,7 +138,11 @@ object Hub {
         "bridge" to true,
         "rpkInspect" to true,
         "notifyRelay" to true,
-        "protocolCalibrated" to (protocol.ops.isNotEmpty())
+        "realMiwear" to true,
+        "mass" to true,
+        "apps" to true,
+        "authkey" to true,
+        "protocolCalibrated" to false
     )
 
     fun buildInfo(): Map<String, Any> = mapOf(

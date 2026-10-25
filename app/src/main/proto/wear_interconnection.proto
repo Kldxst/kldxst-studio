@@ -1,0 +1,401 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum DeviceType
+{
+    ANDROID_PHONE = 1;
+    ANDROID_PAD = 2;
+    ANDROID_TV = 3;
+    WINDOWS_PC = 4;
+    SOUNDBOX = 5;
+    SOUNDBOX_SCREEN = 6;
+    HEADSET = 7;
+}
+
+message Interconnection {
+
+    enum InterconnectionID {
+        REQUEST_PHONE_STATUS = 0;
+        SYNC_PHONE_STATUS = 1;
+        REGISTER_PHONE_USAGE = 17;
+        UNREGISTER_PHONE_USAGE = 18;
+        SEND_PHONE_USAGE = 19;
+        START_PHONE_TRACE = 20;
+        FINISH_PHONE_TRACE = 21;
+        SEND_PHONE_TRACE = 22;
+        REQEUST_SHARE_DEVICES = 2;
+        SYNC_SHARE_DEVICES = 3;
+        UPDATE_SHARE_DEVICE = 4;
+        CONTROL_AUDIO = 5;
+        CONTROL_TV = 6;
+        CONTROL_HEADSET = 7;
+        SEND_CONTROL_RESULT = 8;
+        REQUEST_PROJECTION_DEVICES = 9;
+        SYNC_PROJECTION_DEVICES = 10;
+        REQUEST_PROJECTION = 11;
+        SEND_PROJECTION_RESPONSE = 12;
+        REPORT_PROJECTION_DATA = 13;
+        REPORT_PROJECTION_REPORT = 14;
+        NOTIFY_PROJECTION_MEMBERS = 15;
+        ENTER_COURSE_ZONE = 16;
+        START_SLIDE_SHOW = 23;
+        STOP_SLIDE_SHOW = 24;
+        START_DEMO_SHOW = 25;
+        STOP_DEMO_SHOW = 26;
+        SUBSCRIBE_MIS_DEVICE = 27;
+        UNSUBSCRIBE_MIS_DEVICE = 28;
+        SYNC_MIS_DEVICE = 29;
+        PUBLISH_MIS_SPEC = 30;
+        REPORT_MIS_SPEC = 31;
+        GET_WEAR_SPEC_BASIC = 32;
+        SEND_MIS_PACKET = 33;
+        REQUEST_SERVER_CERT = 34;
+        RESPONSE_SERVER_CERT = 35;
+        REQUEST_DEVICE_CERT = 36;
+        RESPONSE_DEVICE_CERT = 37;
+        REQUEST_PROPS = 38;
+        RESPONSE_PROPS = 39;
+
+        REQUEST_GAME_CMD  = 49;
+        GET_GAME_STATUS   = 50;
+        REQUEST_GAME_INFO = 51;
+        SEND_GAME_INFO    = 52;
+        SEND_GAME_SCENE   = 53;
+        SEND_GAME_EVENT   = 54;
+    }
+
+    oneof payload {
+        PhoneStatus phone_status = 1;
+        ShareDevice.List share_devices = 2;
+        ShareDevice share_device = 3;
+        AudioControl audio_control = 4;
+        TVControl tv_control = 5;
+        HeadsetControl headset_control = 6;
+        ControlResult control_result = 7;
+        ProjectionDevice.List projection_devices = 8;
+        ProjectionRequest projection_request = 9;
+        ProjectionResponse projection_response = 10;
+        ProjectionData projection_data = 11;
+        RequestInfo request_info = 12;
+        ProjectionReport projection_report = 13;
+        ProjectionMember.List projection_members = 14;
+        CourseZone course_zone = 15;
+        PhoneUsage phone_usage = 16;
+        PhoneTrace phone_trace = 17;
+        MiShow.SlideRequest mishow_slide_request = 18;
+        MiShow.Demo mishow_demo = 19;
+        Mis.Device.List mis_devices = 20;
+        Mis.WearSpecBasic wear_spec_basic = 21;
+        Mis.Payload mis_payload = 22;
+        Cert.ServerRequest cert_server_request = 23;
+        Cert.DeviceRequest cert_device_request = 24;
+        Cert.Response cert_response = 25;
+        Prop.Request prop_request = 26;
+        Prop.Response prop_response = 27;
+
+        GameModeCmd          game_cmd          = 37;
+        GameModeCmdResponse  game_cmd_response  = 38;
+        GameModeState        game_state        = 39;
+        GameModeInfo         game_info         = 40;
+        GameModeScene        game_scene        = 41;
+        GameModeEvent        game_event        = 42;
+    }
+
+}
+
+message GameModeCmd {
+    enum CmdType {
+        START  = 1;
+        PAUSE  = 2;
+        RESUME = 3;
+        STOP   = 4;
+    }
+    required CmdType cmd = 1;
+}
+
+message GameModeCmdResponse {
+    enum Status {
+        SUCCESS   = 0;
+        FAIL      = 1;
+        EXCLUSION = 2;
+    }
+    required GameModeCmd.CmdType cmd = 1;
+    required Status status = 2;
+}
+
+message GameModeState {
+    enum State {
+        NOT_IN_GAME_MODE = 0;
+        IN_GAME_MODE     = 1;
+        PAUSED           = 2;
+    }
+    required State state = 1;
+}
+
+message GameModeInfo {
+    required uint32 game_id   = 1; // Game ID from whitelist config
+    required string game_name = 2; // Game display name
+}
+
+message GameModeScene {
+    required uint32 scene_style   = 1; // Scene style from event config
+    required string scene_title   = 2; // Scene title
+    required string scene_message = 3; // Scene detailed message
+}
+
+message GameModeEvent {
+    required uint32 event_id   = 1; // Event ID from event config
+    required uint32 event_type = 2; // Event type from event config
+}
+
+message PhoneStatus {
+    required uint32 screen = 1;
+}
+
+message ShareDevice {
+
+    message List {
+        repeated ShareDevice list = 1;
+    }
+
+    required DeviceType type = 1;
+    required string id = 2;
+    required string name = 3;
+    oneof info {
+        AudioInfo audio_info = 4;
+        TVInfo tv_info = 5;
+        HeadsetInfo headset_info = 6;
+    }
+}
+
+message AudioData {
+    required string name = 1;
+    required uint32 current_positon = 2;
+    required uint32 duration = 3;
+    required uint32 volume = 4;
+    required string artist = 5;
+    required string album = 6;
+}
+
+message AudioInfo {
+    required uint32 state = 1;
+    optional AudioData data = 2;
+    required string output_id = 3;
+}
+
+message TVData {
+    required string name = 1;
+}
+
+message TVInfo {
+    required uint32 state = 1;
+    optional TVData data = 2;
+}
+
+message HeadsetInfo {
+    required uint32 voice_mode = 1;
+    required uint32 multi_connection = 2;
+}
+
+message AudioControl {
+    required string device_id = 1;
+    required uint32 cmd = 2;
+    optional uint32 int_value = 3;
+    required string str_value = 4;
+}
+
+message TVControl {
+    required string device_id = 1;
+    required uint32 cmd = 2;
+}
+
+message HeadsetControl {
+    required string device_id = 1;
+    optional uint32 voice_mode = 2;
+    optional uint32 multi_connection = 3;
+}
+
+message ControlResult {
+    required string device_id = 1;
+    required int32 code = 2;
+}
+
+message ProjectionDevice {
+
+    message List {
+        repeated ProjectionDevice list = 1;
+    }
+
+    required string id = 1;
+    required string name = 2;
+    required uint32 state = 3;
+}
+
+message ProjectionRequest {
+    required string device_id = 1;
+    required uint32 cmd = 2;
+}
+
+message ProjectionResponse {
+    required string device_id = 1;
+    required uint32 code = 2;
+}
+
+message ProjectionData {
+
+    message GroupInfo {
+        required uint32 segment_type = 1;
+        required uint32 segment_timestamp = 2;
+        required uint32 segment_duration = 3;
+        optional uint32 group_index = 4;
+        optional uint32 calories = 5;
+        optional uint32 recommend_heart_rate = 6;
+        optional uint32 count = 7;
+    }
+
+    message Device {
+
+        message List {
+            repeated Device list = 1;
+        }
+
+        required uint32 type = 1;
+        required uint32 pid = 2;
+        required uint32 connect_status = 3;
+    }
+
+    required SportType sport_type = 1;
+    required uint32 start_time = 2;
+    required uint32 duration = 3;
+    required uint32 heart_rate = 4;
+    required uint32 calories = 5;
+    optional uint32 steps = 6;
+    optional uint32 distance = 7;
+    optional uint32 current_pace = 8;
+    optional float speed = 9;
+    optional uint32 jump_count = 10;
+    optional uint32 stumble_count = 11;
+    optional GroupInfo group_info = 12;
+    optional bool abnormal_heart_rate = 13;
+    optional HeartRateSection heart_rate_zone = 14;
+    optional Device.List device_list = 15;
+}
+
+message RequestInfo {
+    required bool only_audio = 1;
+}
+
+message ProjectionReport {
+    required uint32 timestamp = 1;
+    required Timezone timezone = 2;
+    required uint32 duration = 3;
+    required uint32 toal_calories = 4;
+    required uint32 calories = 5;
+    required uint32 avg_heart_rate = 6;
+    required uint32 max_heart_rate = 7;
+    required uint32 min_heart_rate = 8;
+    required uint32 hrm_warm_up_duration = 9;
+    required uint32 hrm_fat_burning_duration = 10;
+    required uint32 hrm_aerobic_duration = 11;
+    required uint32 hrm_anaerobic_duration = 12;
+    required uint32 hrm_extreme_duration = 13;
+}
+
+message ProjectionMember {
+
+    message List {
+        repeated ProjectionMember list = 1;
+    }
+
+    required string device_id = 1;
+    required string user_id = 2;
+    required string user_name = 3;
+    optional uint32 status = 4;
+}
+
+message CourseZone {
+    required uint32 status = 1;
+}
+
+message PhoneUsage {
+    required bool hold = 1;
+    required uint32 screen = 2;
+    required uint32 foreground_app_type = 3;
+}
+
+message PhoneTrace {
+    required uint32 dir_angle = 1;
+    required uint32 dir_change_count = 2;
+    required uint32 dir_change_std = 3;
+    required uint32 dir_change_avg = 4;
+    required uint32 ambient_light_avg = 5;
+}
+
+message MiShow {
+
+    message SlideRequest {
+        required uint64 timestamp = 1;
+    }
+
+    message Demo {
+        required string show = 1;
+    }
+}
+
+message Mis {
+
+    message Device {
+
+        message List {
+            repeated Device list = 1;
+            optional bool car_owner = 2;
+        }
+
+        required string did = 1;
+        required uint32 pdid = 2;
+        required uint32 status = 3;
+        required string name = 4;
+    }
+
+    message WearSpecBasic {
+        required string device_info = 1;
+    }
+
+    message Payload {
+        required string spec = 1;
+        required bytes packet = 2;
+    }
+}
+
+message Cert {
+
+    message ServerRequest {
+    }
+
+    message DeviceRequest {
+        required string payload = 1;
+    }
+
+    message Response {
+        required int32 error_code = 1;
+        required string result = 2;
+    }
+}
+
+message Prop {
+
+    message Request {
+        required string did = 1;
+        repeated string props = 2;
+    }
+
+    message Response {
+        required string did = 1;
+        repeated KeyValueStr props_value = 2;
+    }
+}

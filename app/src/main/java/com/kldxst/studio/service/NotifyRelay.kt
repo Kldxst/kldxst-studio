@@ -3,27 +3,24 @@ package com.kldxst.studio.service
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import com.kldxst.studio.bt.FrameCodec
 import com.kldxst.studio.core.Hub
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 
 /**
- * 通知转发：手机通知 → 手环。
+ * 通知转发：手机通知 → 手表。
  *
- * 需要在系统设置里授予「通知使用权」，没授予时本服务不会被启动。
- * 只在已连接且配置了 notify 消息号时才发，避免无效帧污染通道。
+ * 真实协议是 Notification.NotifyData protobuf，不是 JSON；每条通知需要稳定的
+ * (uid/app_id/app_group/key) 身份，删除时用同一身份。这里直接调用 WearController。
  */
 class NotifyRelay : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (!Hub.wear.connected) return
-        if (Hub.protocol.ops["notify"] == null) return
+        if (!Hub.wearController.connected || !Hub.wearController.authenticated) return
         if (!prefs().getBoolean("notify.relay", true)) return
 
         val pkg = sbn.packageName ?: return
@@ -34,19 +31,39 @@ class NotifyRelay : NotificationListenerService() {
 
         val extras = sbn.notification.extras ?: return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.take(64) ?: return
-        val body = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.take(200) ?: ""
-
-        val payload = JSONObject()
-            .put("app", pkg)
-            .put("title", title)
-            .put("body", body)
-            .put("at", sbn.postTime)
+        val body = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.take(400) ?: ""
+        val appName = runCatching {
+            packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+        }.getOrDefault(pkg)
+        val key = notificationKey(sbn)
 
         scope.launch {
-            runCatching { Hub.wear.command("notify", FrameCodec.utf8(payload.toString()), 4000) }
-                .onFailure { Hub.log.add("通知转发失败：${it.message}") }
+            runCatching {
+                Hub.wearController.notify(
+                    title = title,
+                    body = body,
+                    appName = appName,
+                    appId = pkg,
+                    appGroup = "phone",
+                    key = key
+                )
+            }.onFailure { Hub.log.add("通知转发失败：${it.message}") }
         }
     }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        if (!Hub.wearController.connected || !Hub.wearController.authenticated) return
+        val pkg = sbn.packageName ?: return
+        if (pkg == applicationContext.packageName) return
+        scope.launch {
+            runCatching {
+                Hub.wearController.removeNotification(notificationKey(sbn), pkg, "phone")
+            }.onFailure { Hub.log.add("通知撤回失败：${it.message}") }
+        }
+    }
+
+    private fun notificationKey(sbn: StatusBarNotification): String =
+        "phone:${sbn.packageName}:${sbn.id}:${sbn.tag ?: ""}"
 
     private fun prefs() = applicationContext.getSharedPreferences("kldxst", MODE_PRIVATE)
 }

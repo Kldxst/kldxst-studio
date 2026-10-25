@@ -1,0 +1,261 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum FactoryMode {
+    USER = 0;
+    USERDEBUG = 1;
+    ENG = 2;
+    SELE_CHECKING = 3;
+    MEDICAL_METER = 4;
+}
+
+message Factory {
+    
+    enum FactoryID {
+        SET_MODE = 0;
+        GET_MODE = 6;
+        CONFIG_NFC = 1;
+        DUMP_FILE = 2;
+        PREVIEW_IMAGE = 3;
+        DUMP_MEDIA = 4;
+        SET_BRIGHTNESS = 5;
+        SELF_CHECKING_REQUEST = 7;
+        REPORT_SELF_CHECKING_RESULT = 8;
+        SELF_CHECKING_STEP_REQUEST = 16;
+        REPORT_SELF_CHECKING_STEP_RESULT = 17;
+        SENSOR_CAPTURE_REQUEST = 10;
+        SENSOR_CONFIRM_REQUEST = 11;
+        SENSOR_REPLAY_REQUEST = 15;
+        GET_APP_INFO_LIST = 9;
+        SUBSCRIBE_APP_BEHAVIOR = 12;
+        UNSUBSCRIBE_APP_BEHAVIOR = 13;
+        REPORT_APP_BEHAVIOR = 14;
+        SET_ATTP = 128;
+    }
+
+    oneof payload {
+        FactoryMode mode = 1;
+        NfcInfo.List nfc_list = 2;
+        FileInfo file = 3;
+        PreviewImageRequest image_request = 4;
+        PreviewImageResponse image_response = 5;
+        uint32 brightness = 6;
+        SelfChecking.Request self_checking_request = 7;
+        SelfChecking.Response self_checking_response = 8;
+        SelfChecking.Result self_checking_result = 9;
+        SensorCaptureRequest sensor_capture_request = 10;
+        SensorCaptureResponse sensor_capture_response = 11;
+        SensorConfirmRequest sensor_confirm_request = 12;
+        SensorConfirmResponse sensor_confirm_response = 13;
+        CTA.AppInfo.List app_info_list = 14;
+        CTA.AppBehavior app_behavior = 15;
+        SensorReplayRequest sensor_replay_request = 16;
+        SensorReplayResponse sensor_replay_response = 17;
+        SelfChecking.StepRequest self_checking_step_request = 18;
+        SelfChecking.StepResult self_checking_step_result = 19;
+        string attp = 128;
+    }
+
+}
+
+message NfcInfo {
+
+    message List {
+        repeated NfcInfo list = 1;
+    }
+
+    required string key = 1;
+    required bytes value = 2;
+}
+
+message FileInfo {
+    required string name = 1;
+    required bool is_append = 2;
+    required bytes data = 3;
+}
+
+message PreviewImageRequest {
+    required string id = 1;
+    required string name = 2;
+}
+
+message PreviewImageResponse {
+    required PrepareStatus status = 1;
+    optional ImageFormat expected_image_format = 2;
+    optional uint32 expected_slice_length = 3;
+}
+
+message SensorCaptureRequest {
+
+    enum State {
+        START_CAPTURE = 1;
+        STOP_CAPTURE = 2;
+        SYNC_CAPTURE = 3;
+        SET_CAPTURE = 4;
+    }
+
+    enum Mode {
+        ONLINE_CAPTURE = 1;
+        OFFLINE_CAPTURE = 2;
+        REALTIME_CAPTURE = 3;
+    }
+
+    message MetaInfo {
+        required string user_id = 1;
+        required Sex sex = 2;
+        required uint32 user_age = 3;
+        required uint32 height = 4;
+        required float weight = 5;
+        required string main_scene = 6;
+        required string sub_scene = 7;
+    }
+
+    message Sensor {
+
+        message List {
+            repeated Sensor list = 1;
+        }
+
+        required uint32 type = 1;
+        required uint32 frequence = 2;
+    }
+
+    required State state = 1;
+    required Mode mode = 2;
+    optional uint32 timestamp = 3;
+    optional MetaInfo meta_info = 4;
+    optional Sensor.List sensor_list = 5;
+    required bytes setting_info = 6;
+}
+
+message SensorCaptureResponse {
+    required uint32 code = 1;
+    required bytes setting_info = 2;
+}
+
+message SensorConfirmRequest {
+    required bytes data_id = 1;
+    required uint32 status = 2;
+}
+
+message SensorConfirmResponse {
+    required uint32 result = 1;
+}
+
+message SelfChecking {
+
+    enum Cmd {
+        ENTER = 0;
+        START = 1;
+        EXIT = 2;
+    }
+
+    enum Status {
+        OK = 0;
+        WILL_REBOOT = 1;
+        FAIL = 2;
+    }
+
+    enum Func {
+        BLUETOOTH = 1;
+        GNSS = 2;
+        NFC = 3;
+        WIFI = 4;
+        ESIM = 5;
+        ACC = 6;
+        GYRO = 7;
+        MAG = 8;
+        BARO = 9;
+        LIGHT = 10;
+        PPG = 11;
+        CAP = 12;
+        TEMP = 13;
+        CHARGE = 14;
+        BATTERY = 15;
+        DP = 16;
+        TP = 17;
+        KEY = 18;
+        ROTARY = 19;
+        MOTOR = 20;
+        STORAGE = 21;
+        AUDIO = 22;
+        DOU = 23;
+        MIC = 24;
+        PA = 25;
+        CAMERA = 26;
+        IMU = 27;
+        INDICATOR_LIGHT = 28;
+        PRIVACY_LIGHT = 29;
+        RANGE = 30;
+        HEART_RATE = 31;
+        BLOOD_OXYGEN = 32;
+        ECG = 33;
+    }
+
+    message Request {
+        required Cmd cmd = 1;
+    }
+
+    message Response {
+        required Cmd cmd = 1;
+        required Status status = 2;
+    }
+
+    message Item {
+        required Func func = 1;
+        required bool pass = 2;
+    }
+
+    message Result {
+        repeated Item items = 1;
+        optional bool partial = 2;
+    }
+
+    message StepRequest {
+        required Func func = 1;
+        required uint32 step = 2;
+    }
+
+    message StepResult {
+        required Func func = 1;
+        required uint32 step = 2;
+        required uint32 result = 3;
+    }
+
+}
+
+message CTA {
+
+    message AppInfo {
+
+        message List {
+            repeated AppInfo list = 1;
+        }
+
+        required string id = 1;
+        required string name = 2;
+        required string version = 3;
+        required string update_time = 4;
+    }
+
+    message AppBehavior {
+        required string name = 1;
+        required KeyValueStr items = 2;
+    }
+
+}
+
+message SensorReplayRequest {
+    required uint32 type = 1;
+    required uint32 instance = 2;
+    required bytes md5 = 3;
+}
+
+message SensorReplayResponse {
+    required uint32 status = 1;
+}

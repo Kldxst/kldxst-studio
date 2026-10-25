@@ -8,3 +8,9 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn org.conscrypt.**
+
+# Protobuf lite generated messages / BouncyCastle CCM
+-keep class com.kldxst.studio.proto.** { *; }
+-keep class com.google.protobuf.** { *; }
+-dontwarn org.bouncycastle.**
+-keep class org.bouncycastle.crypto.** { *; }

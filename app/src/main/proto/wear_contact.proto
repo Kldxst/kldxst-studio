@@ -1,0 +1,66 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+message Contact {
+
+    enum ContactID {
+        GET_EMERGENCY_CONTACT = 0;
+        SET_EMERGENCY_CONTACT = 1;
+        REQUEST_MIUI_SOS = 8;
+        RESPONSE_MIUI_SOS = 9;
+        APPLY_FALL_HELP = 10;
+        END_FALL_HELP = 11;
+        QUERY_CONTACT_INFO = 2;
+        SEND_CONTACT_INFO = 3;
+        GET_CONTACT_LIST = 4;
+        ADD_CONTACT_LIST = 5;
+        REMOVE_CONTACT_LIST = 6;
+        SYNC_CONTACT_LIST = 7;
+    }
+
+    oneof payload {
+        EmergencyContact emergency_contact = 1;
+        string number = 2;
+        ContactInfo contact_info = 3;
+        ContactInfo.List contact_info_list = 4;
+        MiuiSOS.Request miui_sos_request = 5;
+        MiuiSOS.Response miui_sos_response = 6;
+        HelpRequest help_request = 7;
+    }
+}
+
+message ContactInfo {
+
+    message List {
+        repeated ContactInfo list = 1;
+        optional uint32 current_segment = 2;
+        optional uint32 total_segment = 3;
+    }
+
+    required string name = 1;
+    required string number = 2;
+}
+
+message EmergencyContact {
+    required bool enabled = 1;
+    optional ContactInfo contact_info = 2;
+}
+
+message MiuiSOS {
+
+    message Request {
+    }
+
+    message Response {
+        required uint32 code = 1;
+    }
+
+}
+
+message HelpRequest {
+    repeated string sms_number = 1;
+    optional uint32 reason = 2;
+}

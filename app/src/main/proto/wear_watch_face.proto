@@ -1,0 +1,241 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+message WatchFace {
+
+    enum WatchFaceID {
+        GET_INSTALLED_LIST = 0;
+        SET_WATCH_FACE = 1;
+        REMOVE_WATCH_FACE = 2;
+        REMOVE_WATCH_FACE_PHOTO = 3;
+        PREPARE_INSTALL_WATCH_FACE = 4;
+        REPORT_INSTALL_RESULT = 5;
+        REMOVE_MULTI_WATCH_FACE = 6;
+        GET_SUPPORT_DATA = 10;
+        EDIT_WATCH_FACE = 11;
+        BG_IMAGE_RESULT = 12;
+        FONT_RESULT = 13;
+    }
+
+    oneof payload {
+        WatchFaceItem.List watch_face_list = 1;
+        string id = 2;
+        string path = 3;
+        bool success = 4;
+        PrepareStatus prepare_status = 5;
+        PrepareInfo prepare_info = 6;
+        InstallResult install_result = 7;
+        WatchFaceInfo.List info_list = 8;
+        PrepareReply prepare_reply = 9;
+        WatchFaceSlot.List support_data_list = 11;
+        EditRequest edit_request = 12;
+        EditResponse edit_response = 13;
+        BgImageResult bg_image_result = 14;
+        FontResult font_result = 15;
+    }
+
+}
+
+message WatchFaceSlot {
+
+    enum Data {
+        EMPTY = 0;
+        HEART_RATE = 1;
+        PRESSURE = 2;
+        SLEEP = 3;
+        ENERGY = 4;
+        STEP = 5;
+        CALORIE = 6;
+        VALID_STAND = 7;
+        BATTERY = 8;
+        DATE = 9;
+        WEATHER = 10;
+        AIR_PRESSURE = 11;
+        ALTITUDE = 12;
+        TIMER = 13;
+        CLOCK = 14;
+        AQI = 15;
+        HUMIDITY = 16;
+        SPORT_MODE = 17;
+        UVI = 18;
+        SUNRISE_SUNSET = 19;
+        WIND_DIRECTION = 20;
+    }
+
+    message List {
+        repeated Data list = 1;
+    }
+
+    message Item {
+        required string slot_id = 1;
+        required string widget_id = 2;
+    }
+}
+
+message WatchFaceItem {
+
+    message List {
+        repeated WatchFaceItem list = 1;
+    }
+
+    required string id = 1;
+    required string name = 2;
+    required bool is_current = 3;
+    optional bool can_remove = 4;
+    optional uint64 version_code = 5;
+    optional bool can_edit = 6;
+    required string background_color = 7;
+    required string background_image = 8;
+    required string style = 9;
+    repeated WatchFaceSlot.Data data_list = 10;
+    optional ImageFormat support_image_format = 11;
+    repeated string background_image_list = 12;
+    repeated WatchFaceSlot.Item slot_item_list = 13;
+    optional bytes foreground_color = 14;
+    optional uint32 style_color_index = 15;
+    optional bool support_image_group = 16;
+    optional WatchFaceImage.GroupList image_group_list = 17;
+    optional bool on_trial = 18;
+    optional uint32 support_video_format = 20;
+}
+
+message WatchFaceInfo {
+
+    message List {
+        repeated WatchFaceInfo list = 1;
+    }
+
+    required string id = 1;
+}
+
+message PrepareInfo {
+
+    message Verification {
+        required string info = 1;
+        required string sign = 2;
+        optional uint32 trial_duration = 3;
+    }
+
+    required string id = 1;
+    required uint32 size = 2;
+    optional uint64 version_code = 3;
+    optional uint32 support_compress_mode = 4;
+    optional Verification verification = 5;
+}
+
+message PrepareReply {
+    required string id = 1;
+    required PrepareStatus prepare_status = 2;
+    optional uint32 select_compress_mode = 3;
+    optional uint32 expected_slice_length = 4;
+}
+
+message InstallResult {
+
+    enum Code {
+        VERIFY_FAILED = 0;
+        INSTALL_FAILED = 1;
+        INSTALL_SUCCESS = 2;
+        INSTALL_USED = 3;
+    }
+
+    required string id = 1;
+    required Code code = 2;
+    optional bool support_edit = 3;
+    optional ImageFormat support_image_format = 4;
+}
+
+message WatchFaceImage {
+
+    message Group {
+        required string id = 1;
+        required uint32 content_pos_index = 2;
+        required WatchFaceImage bg_image = 3;
+        optional WatchFaceImage fg_image = 4;
+    }
+
+    message GroupList {
+        repeated Group list = 1;
+        required uint32 support_max_count = 2;
+    }
+
+    required string id = 1;
+    optional uint32 size = 2;
+}
+
+message WatchFaceLiteral {
+
+    message Item {
+
+        message List {
+            repeated Item literal_items = 1;
+        }
+
+        required string id = 1;
+        repeated string text_list = 2;
+        optional uint32 source = 3;
+    }
+
+    required Item.List items = 1;
+    required string font = 2;
+    optional uint32 font_size = 3;
+}
+
+message EditRequest {
+    required string id = 1;
+    required bool set_current = 2;
+    required string background_color = 3;
+    required string background_image = 4;
+    optional uint32 background_image_size = 5;
+    required string style = 6;
+    repeated WatchFaceSlot.Data data_list = 7;
+    repeated string background_image_list = 8;
+    repeated uint32 background_image_size_list = 9;
+    repeated string order_image_list = 10;
+    optional bool delete_all_images = 11;
+    repeated WatchFaceSlot.Item slot_item_list = 12;
+    optional bytes foreground_color = 13;;
+    optional uint32 style_color_index = 14;
+    optional WatchFaceImage.GroupList image_group_list = 15;
+    optional WatchFaceLiteral literal = 16;
+}
+
+message EditResponse {
+
+    enum Code {
+        SUCCESS = 0;
+        SUCCESS_BUT_LOW_STORAGE = 1;
+        FAIL_FOR_LOW_STORAGE = 2;
+        FAIL_FOR_INVALID_PARAM = 3;
+        FAIL = 4;
+    }
+
+    required string id = 1;
+    required Code code = 2;
+    optional uint32 can_accept_image_count = 3;
+    optional uint32 expected_slice_length = 4;
+}
+
+message BgImageResult {
+
+    enum Code {
+        SUCCESS = 0;
+        IMAGE_SAVE_FAILED = 1;
+        IMAGE_RESOLVE_FAILED = 2;
+        NO_WATCH_FACE_MATCHED = 3;
+    }
+
+    required Code code = 1;
+    required string id = 2;
+    required string background_image = 3;
+}
+
+message FontResult {
+    required uint32 code = 1;
+    required string id = 2;
+}

@@ -1,4 +1,9 @@
-# AstroBox 2.2.0 逆向记录
+# AstroBox 2.2.0 逆向记录（历史）
+
+> **已被 `docs/PROTOCOL.md` / `docs/REVERSE_ANALYSIS.md` 取代。**
+> 本文保留 1.x 时期的 APK 字符串观察，其中“authkey 只是 HMAC”“magic 4 字节帧”
+> 等结论是错误的；真实协议见 AstroBox NG 公开源码分析（L1 8B 头 + SAR + L2 + protobuf +
+> 三步 HMAC-SHA256 KDF/AES-CCM）。设备列表端点 `bledevice_info` 实际是上报接口，不是列表接口。
 
 分析对象：`KdSync/AstroBox_2.2.0.apk`（Tauri 应用，核心在 `lib/arm64-v8a/libapp_lib.so`，178 MB）。
 方法：解包 + 提取字符串（446786 条）+ 结构化归类。以下都是**证据原文**，不是推测。

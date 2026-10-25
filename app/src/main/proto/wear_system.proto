@@ -1,0 +1,901 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum PowerMode {
+    PERFORMANCE = 0;
+    POWER_SAVE = 1;
+    SUPER_POWER_SAVE = 2;
+}
+
+enum ResetMode {
+    NO_ERASE = 0;
+    ERASE_ALL = 1;
+}
+
+enum FindMode {
+    FIND_START = 0;
+    FIND_STOP = 1;
+}
+
+enum TimingMode
+{
+    ALL_DAY_ON = 0;
+    TIMED_ON = 1;
+    ALL_DAY_OFF = 2;
+    SMART_ON = 3;
+}
+
+enum Order
+{
+    HEAD_RESIDENT = 0;
+    HIGHEST = 10;
+    LOWEST = 99;
+    RESIDENT = 100;
+}
+
+message System {
+
+    enum SystemID {
+        RESET = 0;
+        APPLY_NEW_BIND = 63;
+        NOTIFY_NEW_BIND = 12;
+        NOTIFY_APP_DISCONNECTED = 13;
+        APPLY_LOW_LATENCY = 67;
+        GET_DEVICE_STATUS = 1;
+        GET_DEVICE_INFO = 2;
+        SET_SYSTEM_TIME = 3;
+        FORCE_UPGRADE = 4;
+        PREPARE_OTA = 5;
+        REPORT_OTA_PROGRESS = 87;
+        SET_LANGUAGE = 6;
+        GET_HID_STATUS = 7;
+        SET_HID_STATUS = 8;
+        GET_LOCK_SCREEN = 9;
+        SET_LOCK_SCREEN = 21;
+        GET_NIGHT_MODE = 10;
+        SET_NIGHT_MODE = 11;
+        UNLOCK_WATCH = 16;
+        FIND_PHONE = 17;
+        FIND_WEAR = 18;
+        GET_AUTHORIZE_UNLOCK = 19;
+        SET_AUTHORIZE_UNLOCK = 20;
+        GET_QUIET_MODE = 22;
+        SET_QUIET_MODE = 23;
+        GET_WRIST_SCREEN = 24;
+        SET_WRIST_SCREEN = 25;
+        SET_WIDGET = 26;
+        SET_WIDGET_LIST = 27;
+        GET_WIDGET_LIST = 28;
+        GET_ORDERED_APP_LIST = 29;
+        SET_ORDERED_APP_LIST = 30;
+        GET_APP_LAYOUT = 31;
+        SET_APP_LAYOUT = 41;
+        SET_SHORTCUT_1 = 32;
+        SET_SHORTCUT_2 = 33;
+        SET_SHORTCUT_3 = 34;
+        GET_SHORTCUT_1 = 35;
+        GET_SHORTCUT_2 = 36;
+        GET_SHORTCUT_3 = 37;
+        GET_SUPPORT_SHORTCUT_LIST = 38;
+        GET_SPORT_OPTION = 39;
+        SET_SPORT_OPTION = 40;
+        ADD_OR_UPDATE_SMALL_HABIT = 48;
+        SYNC_SMALL_HABIT = 49;
+        DELETE_SMALL_HABIT = 50;
+        GET_WIDGET_GROUP_LIST = 51;
+        SET_WIDGET_GROUP_LIST = 52;
+        GET_SUPPORT_WIDGET_LIST = 53;
+        GET_WIFI_CAPABILITY = 54;
+        REQUEST_WIFI_CONFIG = 55;
+        ADD_WIFI_CONFIG = 56;
+        NOTIFY_WIFI_CONFIG_RESULT = 98;
+        SYNC_WIFI_CONFIG_LIST = 57;
+        GET_WIFI_CONFIG_LIST = 86;
+        ENABLE_WIFI_AP = 88;
+        DISABLE_WIFI_AP = 89;
+        GET_SYSTEM_SETTING = 14;
+        SET_SYSTEM_SETTING = 15;
+        REPORT_SYSTEM_SETTING = 42;
+        REQUEST_PHONE_SETTING = 43;
+        SYNC_PHONE_SETTING = 44;
+        MODIFY_PHONE_SETTING = 45;
+        LACK_PHONE_PERMISSION = 64;
+        GET_AOD_SETTING = 65;
+        SET_AOD_SETTING = 66;
+        GET_VIBRATOR_SETTING = 46;
+        SET_VIBRATOR_ITEM = 47;
+        ADD_VIBRATOR = 58;
+        TEST_VIBRATOR = 59;
+        UPDATE_VIBRATOR = 60;
+        REMOVE_VIBRATORS = 61;
+        GET_STORAGE_INFO = 62;
+        GET_WEAR_STATUS = 93;
+        GET_BASIC_STATUS = 78;
+        REPORT_BASIC_STATUS = 79;
+        REPORT_BATTERY_STATUS = 97;
+        GET_ALERT_STATUS = 90;
+        REPORT_ALERT_STATUS = 91;
+        REPORT_DATA = 80;
+        REPORT_DATA_RESULT = 81;
+        REQUEST_NETWORK_PROXY = 82;
+        SYNC_NETWORK_STATUS = 92;
+        GET_WIDGET_V3 = 83;
+        SET_WIDGET_V3 = 84;
+        GET_SUPPORT_WIDGET_V3 = 85;
+        START_USAGE_GUIDE = 94;
+        REPORT_USAGE_GUIDE_FEEDBACK = 95;
+        FINISH_USAGE_GUIDE = 96;
+    }
+
+    oneof payload {
+        ResetMode reset_mode = 1;
+        DeviceStatus device_status = 2;
+        DeviceInfo device_info = 3;
+        SystemTime system_time = 4;
+        FindMode find_mode = 5;
+        ForceUpgrade force_upgrade = 6;
+        WristScreen wrist_screen = 7;
+        Widget widget = 8;
+        Widget.List widget_list = 9;
+        App.List app_list = 10;
+        TimingSetting timing_setting = 11;
+        Shortcut shortcut = 12;
+        Shortcut.List shortcut_list = 13;
+        SportOption.List sport_option_list = 14;
+        HidStatus hid_status = 15;
+        PrepareOta.Request prepare_ota_request = 16;
+        PrepareOta.Response prepare_ota_response = 17;
+        AppLayout app_layout = 18;
+        LockScreen lock_screen = 19;
+        Language language = 20;
+        AuthorizeUnlock.List authorize_unlock_list = 21;
+        AuthorizeUnlock authorize_unlock = 22;
+        NightMode night_mode = 23;
+        SmallHabit small_habit = 24;
+        SmallHabit.List small_habit_list = 25;
+        SmallHabit.Type small_habit_type = 26;
+        SmallHabit.TypeList small_habit_type_list = 27;
+        WidgetGroup.List widget_group_list = 28;
+        WidgetV2.List widget_v2_list = 29;
+        WiFiConfig.Capability wifi_capability = 30;
+        WiFiConfig.BasicInfo wifi_basic_info = 31;
+        WiFiConfig wifi_config = 32;
+        WiFiConfig.List wifi_config_list = 33;
+        SystemSetting.Request system_setting_request = 34;
+        SystemSetting system_setting = 35;
+        PhoneSetting.Request phone_setting_request = 36;
+        PhoneSetting phone_setting = 37;
+        VibratorSetting vibrator_setting = 38;
+        VibratorItem Vibrator_item = 39;
+        Vibrator Vibrator = 40;
+        VibratorEffect vibrator_effect = 41;
+        Vibrator.Removal vibrator_removal = 42;
+        VibratorError vibrator_error = 43;
+        StorageInfo storage_info = 44;
+        PhonePermission phone_permission = 45;
+        LowLatency low_latency = 46;
+        BasicStatus.Present present_basic_status = 48;
+        BasicStatus.Report report_basic_status = 49;
+        ReportData report_data = 50;
+        ReportData.Result report_data_result = 51;
+        NetworkProxy.Request network_proxy_request = 52;
+        WidgetV3 widget_v3 = 53;
+        WidgetV3.SupportedList widget_v3_supported_list = 54;
+        PrepareOta.Progress ota_progress = 55;
+        WiFiAP.Result wifi_ap_result = 56;
+        WiFiAP wifi_ap = 57;
+        AlertStatus alert_status = 58;
+        NetworkStatus network_status = 59;
+        BasicStatus.Wearing wear_status = 60;
+        UsageGuide usage_guide = 61;
+        UsageGuide.Feedback guide_feedback = 62;
+        DeviceStatus.Battery battery_status = 63;
+        WiFiConfig.Result wifi_config_result = 64;
+    }
+}
+
+message DeviceStatus {
+
+    message Battery {
+
+        enum ChargeStatus {
+            UNKNOWN = 0;
+            CHARGING = 1;
+            NOT_CHARGING = 2;
+            FULL = 3;
+        }
+
+        message ChargeInfo {
+            required uint32 state = 1;
+            optional uint32 timestamp = 2;
+        }
+
+        required uint32 capacity = 1;
+        optional ChargeStatus charge_status = 2;
+        optional ChargeInfo charge_info = 3;
+    }
+
+    required Battery battery = 1;
+}
+
+message DeviceInfo {
+    required string serial_number = 1;
+    required string firmware_version = 2;
+    required string imei = 3;
+    required string model = 4;
+    required string product_device = 5;
+}
+
+message SystemTime {
+    required Date date = 1;
+    required Time time = 2;
+    optional Timezone time_zone = 3;
+    optional bool is_12_hours = 4;
+}
+
+message Language {
+    required string locale = 1;
+}
+
+message HidStatus {
+    required bool enable = 1;
+}
+
+message LockScreen {
+
+    enum Status {
+        DISABLED = 1;
+        ENABLED = 2;
+        ENABLED_AND_REQUIRED = 3;
+    }
+
+    required Status status = 1;
+    required string pwd = 2;
+    optional bool locked = 3;
+}
+
+message NightMode {
+
+    enum Mode {
+        OFF = 1;
+        SUNSET_ON = 2;
+        TIMING_ON = 3;
+    }
+
+    required Mode mode = 1;
+    optional Time start_time = 2;
+    optional Time end_time = 3;
+}
+
+message AuthorizeUnlock {
+
+    enum Device {
+        UNKNOWN = 0;
+        LAPTOP = 1;
+        PHONE = 2;
+    }
+
+    message List {
+        repeated AuthorizeUnlock list = 1;
+    }
+
+    required Device device = 1;
+    required bool enable = 2;
+}
+
+message TimingSetting {
+    required TimingMode timing_mode = 1;
+    optional Time start_time = 2;
+    optional Time end_time = 3;
+    optional uint32 repeat_days = 4;
+    optional uint32 timestamp = 5;
+}
+
+message WristScreen {
+
+    enum Sensitivity {
+        NONE = 0;
+        STANDARD = 1;
+        HIGH = 2;
+    }
+
+    required TimingMode timing_mode = 1;
+    optional Time start_time = 2;
+    optional Time end_time = 3;
+    optional Sensitivity sensitivity = 4;
+}
+
+message Widget {
+
+    message List {
+        repeated Widget list = 1;
+        optional uint32 support_max_number = 2;
+        optional uint32 support_min_number = 3;
+    }
+
+    required uint32 function = 1;
+    required bool enable = 2;
+    optional uint32 order = 3;
+}
+
+message WidgetV2 {
+
+    message List {
+        repeated WidgetV2 support_widgets = 1;
+    }
+
+    required WidgetStyle style = 1;
+    required uint32 function = 2;
+    required uint32 sub_type = 3;;
+    required string name = 4;
+    optional SportType sport_type = 5;
+    required string app_id = 6;
+    required string app_name = 7;
+    optional uint32 phone_type = 8;
+}
+
+message WidgetV3 {
+
+    message NativeBuiltin {
+        required uint32 id = 1;
+        required string name = 2;
+    }
+
+    message NativeBuiltinGroup {
+        required uint32 id = 1;
+        required string name = 2;
+        repeated NativeBuiltin builtin_widgets = 3;
+    }
+
+    message SupportedList {
+        repeated NativeBuiltinGroup builtin_groups = 1;
+    }
+
+    repeated NativeBuiltin builtin_widgets = 1;
+    optional uint32 min_count = 2;
+    optional uint32 max_count = 3;
+}
+
+message WidgetGroup {
+
+    enum Style {
+        STYLE_1 = 1;
+        STYLE_2 = 2;
+        STYLE_3 = 4;
+        STYLE_4 = 8;
+        STYLE_5 = 16;
+        STYLE_6 = 32;
+        STYLE_7 = 64;
+        STYLE_8 = 128;
+        STYLE_9 = 256;
+        STYLE_10 = 512;
+        STYLE_11 = 1024;
+        STYLE_12 = 2048;
+        STYLE_13 = 4096;
+        STYLE_14 = 8192;
+        STYLE_15 = 16384;
+    }
+
+    message Config {
+        required uint32 min_group_number = 1;
+        required uint32 max_group_number = 2;
+        required uint32 support_group_styles = 3;
+    }
+
+    message List {
+        repeated WidgetGroup groups = 1;
+        optional bool full = 2;
+        optional Config config = 3;
+    }
+
+    required uint32 sequency = 1;
+    required Style style = 2;
+    repeated WidgetV2 widgets = 3;
+}
+
+message App {
+
+    message List {
+        repeated App list = 1;
+    }
+
+    required string id = 1;
+    required string name = 2;
+    optional bool hidden = 3;
+    optional bool persist = 4;
+    optional bool can_more = 5;
+    optional bool in_more = 6;
+}
+
+message AppLayout {
+
+    enum Layout {
+        LIST = 1;
+        GRID = 2;
+        GRID_TEXT = 4;
+    }
+
+    required Layout layout = 1;
+    optional uint32 support_layouts = 2;
+}
+
+message Shortcut {
+
+    enum Type {
+        NONE = 0;
+        VOICE = 1;
+        FUNCTION = 2;
+        SPORT = 3;
+    }
+
+    message List {
+        repeated Shortcut list = 1;
+    }
+
+    required Type type = 1;
+    optional uint32 sub_type = 2;
+}
+
+message SportOption {
+
+    message List {
+        repeated SportOption list = 1;
+        optional SportType shortcut_sport_type = 2;
+    }
+
+    required SportType sport_type = 1;
+    required bool show = 2;
+}
+
+message ForceUpgrade {
+    required bool force = 1;
+    required string firmware_version = 2;
+}
+
+message PrepareOta {
+
+    enum Type {
+       ALL = 0;
+       ROM = 1;
+       RES = 2;
+       SILENT = 15;
+    }
+
+    message Progress {
+        required uint32 code = 1;
+        optional float percent = 2;
+        optional uint32 min_battery = 3;
+    }
+
+    message Request {
+        required bool force = 1;
+        required Type type = 2;
+        required string firmware_version = 3;
+        required string file_md5 = 4;
+        required string change_log = 5;
+        required string file_url = 6;
+        optional uint32 file_size = 7;
+    }
+
+    message Response {
+        required PrepareStatus prepare_status = 1;
+        optional uint32 expected_slice_length = 2;
+        optional uint32 min_battery = 3;
+        optional Progress progress = 4;
+    }
+}
+
+message SmallHabit {
+
+    enum Type {
+        GO_TO_BED_EARLY = 0;
+        DO_MORE_EXERCISE = 1;
+        DRINK_WATER = 2;
+        READING = 3;
+        EAT_BREAKFAST = 4;
+        CALL_PARENTS = 5;
+        EAT_FRUIT = 6;
+        ACTIVE_NECK = 7;
+        LEARN_TO_CHARGE = 8;
+        PRACTICE_A_SKILL = 9;
+        CONTACT_FRIEND = 10;
+        SITTING_UPRIGHT = 11;
+        EAT_VEGETABLE = 12;
+        CIVILIZED_LANGUAGE = 13;
+        MEDITATION = 14;
+        BOOK_KEEPING = 15;
+        RECITE_WORDS = 16;
+        WALK_AFTER_MEAL = 17;
+        GO_OUT_WITH_KEY = 18;
+        DAILY_SUMMARY = 19;
+        GARGLE_AFTER_MEAL = 20;
+        SMILE_MORE = 21;
+        TAKE_MEDICINE = 22;
+        NOT_HUMPBACK = 23;
+        CALLIGRAPHY = 24;
+        LUNCH_BREAK = 25;
+        DO_EYE_EXERCISES = 26;
+        DO_YOGA = 27;
+        APPLY_FACIAL_MASK = 28;
+        QUIT_SUGAR = 29;
+        SHOVEL_CAT_LITTER = 30;
+        ONLINE_LESSON = 31;
+        WATERING_FLOWERS = 32;
+        TAKE_A_PICTURE_ONE_DAY = 33;
+    }
+
+    message List {
+        repeated SmallHabit list = 1;
+    }
+
+    message TypeList {
+        repeated Type type = 1;
+    }
+
+    required Type type = 1;
+    repeated Time time = 2;
+    required ClockMode clock_mode = 3;
+    optional uint32 week_days = 4;
+    required bool enable = 5;
+    required string label = 6;
+}
+
+message WiFiConfig {
+
+    enum AuthMode {
+        WPA_NONE = 1;
+        WPA_PSK = 2;
+        WPA_EAP = 4;
+    }
+
+    enum Frequency {
+        F_24G = 1;
+        F_5G = 2;
+    }
+
+    message Capability {
+        optional uint32 support_auth_mode = 1;
+        optional uint32 support_frequency = 2;
+    }
+
+    message BasicInfo {
+        required string ssid = 1;
+        required AuthMode auth_mode = 2;
+        required Frequency frequency = 3;
+    }
+
+    message PSKInfo {
+        required string password = 1;
+    }
+
+    message EAPInfo {
+        required string identity = 1;
+        required string password = 2;
+    }
+
+    message Result {
+        required string ssid = 1;
+        required uint32 code = 2;
+    }
+
+    message List {
+        repeated WiFiConfig list = 1;
+    }
+
+    required BasicInfo basic_info = 1;
+    oneof auth_info {
+        PSKInfo psk_info = 2;
+        EAPInfo eap_info = 3;
+    }
+}
+
+message BasicStatus {
+
+    enum Charging {
+        START = 1;
+        QUIT = 2;
+        FINISH = 3;
+    }
+
+    enum Wearing {
+        ON = 1;
+        OFF = 2;
+    }
+
+    enum Sleeping {
+        IN = 1;
+        OUT = 2;
+    }
+
+    enum Warning {
+        HEART_RATE_HIGH = 1;
+        HEART_RATE_LOW = 2;
+        ACTIVE_HEART_RATE_HIGH = 3;
+        ACTIVE_HEART_RATE_LOW = 4;
+    }
+
+    message Sport {
+        required SportType sport_type = 1;
+        optional SportState sport_state = 2;
+    }
+
+    message Present {
+        required bool is_charging = 1;
+        optional uint32 battery = 2;
+        required bool is_wearing = 3;
+        required bool is_sleeping = 4;
+        required Sport sport = 5;
+    }
+
+    message Report {
+        optional Charging charging = 1;
+        optional Wearing wearing = 2;
+        optional Sleeping sleeping = 3;
+        optional Warning waring = 4;
+        optional Sport sport = 5;
+    }
+}
+
+message ReportData {
+
+    enum Type {
+        DEVICE_LOG = 1;
+        STATISTICS = 2;
+        DUMP_LOG = 3;
+    }
+
+    enum Status {
+        SUCCESS = 0;
+        NO_DATA = 1;
+        URL_DIRECT = 2;
+        BUSY = 3;
+        FAIL = 10;
+    }
+
+    message Result {
+        required Type type = 1;
+        required Status status = 2;
+    }
+
+    required Type type = 1;
+    optional string id = 2;
+}
+
+message NetworkProxy {
+
+    enum Type {
+        PAN = 1;
+    }
+
+    message Request {
+        required Type type = 1;
+    }
+
+}
+
+message WiFiAP {
+
+    message Result {
+        required uint32 code = 1;
+        optional WiFiAP wifi_ap = 2;
+    }
+
+    required string ssid = 1;
+    required string password = 2;
+    required string gateway = 3;
+}
+
+message AlertStatus {
+
+    message Battery {
+        required uint32 type = 1;
+        required uint32 capacity = 2;
+    }
+
+    message Temperature {
+        required bool high = 1;
+        required uint32 temp = 2;
+    }
+
+    message Storage {
+        required uint32 free_space = 1;
+    }
+
+    message Ota {
+        optional uint32 status = 1;
+        optional uint32 error_code = 2;
+    }
+
+    message Electrochromic {
+        required uint32 color = 1;
+        required uint32 level = 2;
+    }
+
+    message Camera {
+        required uint32 status = 1;
+    }
+
+    message Wear {
+        required uint32 mode = 1;
+    }
+
+    optional Battery battery = 1;
+    optional Temperature temperature = 2;
+    optional Storage storage = 3;
+    optional Ota ota = 4;
+    optional Electrochromic electrochromic = 5;
+    optional Camera camera = 6;
+    optional Wear wear = 7;
+}
+
+message NetworkStatus {
+    required uint32 capability = 1;
+}
+
+message UsageGuide {
+
+    message Feedback {
+        required uint32 guide_id = 1;
+        required bool success = 2;
+    }
+
+    required uint32 id = 1;
+    required bool need_feedback = 2;
+}
+
+message SystemSetting {
+
+    message NotificationSetting {
+        required OptionalSwitcher auto_screen = 1;
+        required OptionalSwitcher only_lockscreen = 2;
+        optional OptionalSwitcher only_wear = 3;
+    }
+
+    message DNDMode {
+        required bool sync_with_phone = 1;
+    }
+
+    message WearSetting {
+
+        message HybridMode {
+            required PowerMode power_mode = 1;
+            optional uint64 lack_feature = 2;
+        }
+
+        required WearMode wear_mode = 1;
+        optional HybridMode hybrid_mode = 2;
+    }
+
+    message DisconnectReminder {
+        required bool alert = 1;
+    }
+
+    message IndicatorLight {
+        required uint32 brightness = 1;
+    }
+
+    message AIAssistant {
+        required bool voice_wakeup = 1;
+        optional bool camera_access = 2;
+    }
+
+    message MediaSetting {
+        required uint32 shooting_mode = 1;
+        required uint32 video_duration = 2;
+        required bool auto_sync = 3;
+    }
+
+    message Headset {
+        required bool wear_detection = 1;
+        optional bool volume_adaptive = 2;
+    }
+
+    message OtaSetting {
+        required bool silent = 1;
+    }
+
+    message Request {
+        required uint32 items = 1;
+    }
+
+    optional NotificationSetting notificaton_setting = 1;
+    optional DNDMode dnd_mode = 2;
+    optional WearSetting wear_setting = 3;
+    optional DisconnectReminder disconnect_reminder = 4;
+    optional IndicatorLight indicator_light = 5;
+    optional AIAssistant ai_assistant = 6;
+    optional MediaSetting media_setting = 7;
+    optional Headset headset = 8;
+    optional OtaSetting ota_setting = 9;
+}
+
+message PhoneSetting {
+
+    message Request {
+        required uint32 items = 1;
+    }
+
+    message MuteMode {
+        required bool mute = 1;
+    }
+
+    optional MuteMode mute_mode = 1;
+}
+
+message VibratorSetting {
+    repeated VibratorItem items = 1;
+    required uint32 max_number = 2;
+    repeated Vibrator vibrators = 3;
+    optional uint32 version = 4;
+}
+
+message Vibrator {
+
+    enum Type {
+        NONE = 0;
+        CALL = 1;
+        EVENT = 2;
+        CLOCK = 3;
+        NOTIFICATION = 4;
+        SEDENTARY = 5;
+        MESSAGE = 6;
+        GOAL = 7;
+        CALENDAR = 8;
+    }
+
+    message Removal {
+        repeated uint32 ids = 1;
+    }
+
+    required uint32 id = 1;
+    required string name = 2;
+    repeated VibratorEffect.Segment segments = 3;
+    optional Type type = 4;
+}
+
+message VibratorItem {
+    required Vibrator.Type type = 1;
+    required uint32 id = 2;
+    optional uint32 supported_builtin_ids = 3;
+}
+
+message VibratorEffect {
+
+    message Segment {
+        required bool on = 1;
+        required uint32 duration = 2;
+        optional uint32 strength = 3;
+    }
+
+    repeated Segment segments = 1;
+    optional VibratorItem item = 2;
+}
+
+message VibratorError {
+
+    enum Code {
+        OK = 0;
+        NUMBER_LIMIT = 1;
+        ID_NOT_EXIST = 2;
+    }
+
+    required Code code = 1;
+}
+
+message StorageInfo {
+    required uint64 used = 1;
+    required uint64 total = 2;
+}
+
+message PhonePermission {
+    required uint32 permissions = 1;
+}
+
+message LowLatency {
+    required uint32 duration = 1;
+}

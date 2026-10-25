@@ -1,0 +1,226 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+message ThirdpartyApp {
+
+    enum ThirdpartyAppID {
+        GET_INSTALLED_LIST = 0;
+        PREPARE_INSTALL_APP = 1;
+        REPORT_INSTALL_RESULT = 2;
+        REMOVE_APP = 3;
+        LAUNCH_APP = 4;
+        SYNC_PERMISSION_INFO = 5;
+        REQUEST_PHONE_APP_STATUS = 6;
+        SYNC_PHONE_APP_STATUS = 7;
+        SEND_PHONE_MESSAGE = 8;
+        SEND_WEAR_MESSAGE = 9;
+        REQUEST_WECHAT_LICENSE = 10;
+        RESPONSE_WECHAT_LICENSE = 11;
+        REQUEST_MIHOME = 12;
+        RESPONSE_MIHOME = 13;
+        REQUEST_SCENE = 14;
+        RESPONSE_SCENE = 15;
+        EXECUTE_SCENE = 16;
+        RESULT_SCENE = 17;
+        REQUEST_COURSE_TABLE = 18;
+        SYNC_COURSE_TABLE = 19;
+        SYNC_CURRENT_BLOOD_GLUCOSE = 20;
+    }
+
+    oneof payload {
+        AppItem.List app_item_list = 1;
+        AppInstaller.Request install_request = 2;
+        AppInstaller.Response install_response = 3;
+        AppInstaller.Result install_result = 4;
+        BasicInfo basic_info = 5;
+        LaunchInfo launch_info = 6;
+        PermissionInfo.List permission_info_list = 7;
+        PhoneAppStatus app_status = 8;
+        MessageContent message_content = 9;
+        WechatLicense.Request wechat_license_request = 10;
+        WechatLicense.Response wechat_license_response = 12;
+        MiHome.Request mihome_request = 13;
+        MiHome.List mihome_list = 14;
+        MiHome.Scene.Request scene_request = 15;
+        MiHome.Scene.List scene_list = 16;
+        MiHome.Scene.Executor scene_excutor = 17;
+        MiHome.Scene.Result scene_result = 18;
+        CourseTable course_table = 19;
+        BloodGlucose blood_glucose = 20;
+    }
+
+}
+
+message AppItem {
+
+    message List {
+        repeated AppItem list = 1;
+    }
+
+    required string package_name = 1;
+    required bytes fingerprint = 2;
+    required uint32 version_code = 3;
+    required bool can_remove = 4;
+    required string app_name = 5;
+}
+
+message AppInstaller {
+
+    message Request {
+        required string package_name = 1;
+        required uint32 version_code = 2;
+        required uint32 package_size = 3;
+    }
+
+    message Response {
+        required PrepareStatus prepare_status = 1;
+        optional uint32 expected_slice_length = 2;
+    }
+
+    message Result {
+
+        enum Code {
+            INSTALL_SUCCESS = 0;
+            INSTALL_FAILED = 1;
+            VERIFY_FAILED = 2;
+        }
+
+        required Code code = 1;
+        oneof payload {
+            string package_name = 2;
+            AppItem app_item = 3;
+        }
+
+    }
+
+}
+
+message BasicInfo {
+    required string package_name = 1;
+    required bytes fingerprint = 2;
+}
+
+message LaunchInfo {
+    required BasicInfo basic_info = 1;
+    required string uri = 2;
+}
+
+message PermissionInfo {
+
+    enum Permission {
+        DEVICE_STATUS = 1;
+        USER_STATUS = 2;
+        BODY_SENSOR = 3;
+        MOTION_SENSOR = 4;
+        NOTIFY = 5;
+    }
+
+    message List {
+        repeated PermissionInfo list = 1;
+    }
+
+    required BasicInfo basic_info = 1;
+    repeated Permission grant_permissions = 2;
+}
+
+message PhoneAppStatus {
+
+    enum Status {
+        CONNECTED = 1;
+        DISCONNECTED = 2;
+        UNINSTALLED = 3;
+    }
+
+    required BasicInfo basic_info = 1;
+    required Status status = 2;
+}
+
+message MessageContent {
+    required BasicInfo basic_info = 1;
+    required bytes content = 2;
+}
+
+message WechatLicense {
+
+    message Request {
+    }
+
+    message Response {
+        required int32 code = 1;
+        optional uint32 key_version = 2;
+        optional uint32 product_id = 3;
+        required string signature = 4;
+    }
+
+}
+
+message MiHome {
+
+    message Request {
+    }
+
+    message List {
+        repeated MiHome list = 1;
+    }
+
+    message Scene {
+
+        message Request {
+            required uint64 home_id = 1;
+            required uint64 uid = 2;
+        }
+
+        message List {
+            required uint64 home_id = 1;
+            repeated Scene list = 2;
+        }
+
+        message Executor {
+            required uint64 id = 1;
+            required uint32 type = 2;
+        }
+
+        message Result {
+            required bool result = 1;
+        }
+
+    }
+
+    required uint64 id = 1;
+    required uint64 uid = 2;
+    required string name = 3;
+}
+
+message CourseTable {
+
+    message Section {
+        required Time start_time = 1;
+        required Time end_time = 2;
+    }
+
+    message Course {
+        required string name = 1;
+        required uint32 weeks = 2;
+        required uint32 days = 3;
+        required uint32 sections = 4;
+        required string teacher = 5;
+        required string location = 6;
+    }
+
+    required uint64 timestamp = 1;
+    required uint32 week_number = 2;
+    repeated Section section_list = 3;
+    repeated Course course_list = 4;
+}
+
+message BloodGlucose {
+    required uint64 timestamp = 1;
+    required float value = 2;
+    required uint32 status = 3;
+    optional bool alert = 4;
+}

@@ -96,6 +96,8 @@ class MiWear(
     private val frameLock = Any()
 
     var onFrame: ((Frame) -> Unit)? = null
+    /** 原始字节流入口：L1/L2/protobuf 由 WearSession 处理。 */
+    var onRawData: ((ByteArray) -> Unit)? = null
 
     val connected: Boolean
         get() = socket?.isConnected == true || (transport == "ble" && gattConnected)
@@ -212,24 +214,54 @@ class MiWear(
         close()
         val dev = ad.getRemoteDevice(address)
         runCatching { ad.cancelDiscovery() }
-        val s = try {
-            dev.createRfcommSocketToServiceRecord(SPP_UUID)
-        } catch (e: Exception) {
-            throw IllegalStateException("无法创建 SPP 通道：${e.message}")
-        }
-        try {
-            s.connect()
-        } catch (e: Exception) {
-            runCatching { s.close() }
-            throw IllegalStateException("SPP 连接失败：${e.message}。先强制停止小米运动健康再试")
-        }
+        val s = connectSppSocket(dev)
         socket = s
         spool = ByteArrayOutputStream()
         transport = "spp"
         peer = Peer(dev.name ?: address, address, 0, true)
+        // AstroBox 源码确证：SPP 连接后先发 12B 厂商 Hello，再进 L1/SAR。
+        val hello = byteArrayOf(
+            0xBA.toByte(), 0xDC.toByte(), 0xFE.toByte(), 0x00, 0xC0.toByte(), 0x03,
+            0x00, 0x00, 0x01, 0x00, 0xEF.toByte()
+        )
+        runCatching {
+            s.outputStream.write(hello)
+            s.outputStream.flush()
+        }.onFailure {
+            runCatching { s.close() }
+            throw IllegalStateException("SPP Hello 发送失败：${it.message}")
+        }
         log("SPP 已连接 $address")
         startSppRead(s)
         dev.name ?: address
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun connectSppSocket(dev: BluetoothDevice): BluetoothSocket {
+        val attempts = ArrayList<() -> BluetoothSocket>()
+        attempts.add { dev.createInsecureRfcommSocketToServiceRecord(SPP_UUID) }
+        attempts.add { dev.createRfcommSocketToServiceRecord(SPP_UUID) }
+        // 某些 ROM 的 SDP 不返回 1101；源码里的 fallback channel 是 5，然后 1。
+        attempts.add { createRfcommChannel(dev, 5) }
+        attempts.add { createRfcommChannel(dev, 1) }
+        var last: Throwable? = null
+        for (factory in attempts) {
+            val s = runCatching(factory).getOrElse { last = it; null } ?: continue
+            try {
+                s.connect()
+                return s
+            } catch (e: Exception) {
+                last = e
+                runCatching { s.close() }
+            }
+        }
+        throw IllegalStateException("SPP 连接失败：${last?.message}。先强制停止小米运动健康再试")
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun createRfcommChannel(dev: BluetoothDevice, channel: Int): BluetoothSocket {
+        val method = dev.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType!!)
+        return method.invoke(dev, channel) as BluetoothSocket
     }
 
     private fun startSppRead(s: BluetoothSocket) {
@@ -291,13 +323,13 @@ class MiWear(
                     return
                 }
                 val chars = service.characteristics
-                // 优先取带写+通知的特征；小米常见布局：一写一通知
-                val writable = chars.firstOrNull {
-                    it.properties and (BluetoothGattCharacteristic.PROPERTY_WRITE or
-                        BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
-                }
-                val notifiable = chars.firstOrNull {
-                    it.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0
+                // 源码确证的小米穿戴 GATT 布局：005f 写、005e 通知、0050 探测。
+                val writable = service.getCharacteristic(WRITE_UUID)
+                    ?: chars.firstOrNull { it.uuid.toString().lowercase().endsWith("005f-0000-1000-8000-00805f9b34fb") }
+                val notifiable = service.getCharacteristic(NOTIFY_UUID)
+                    ?: chars.firstOrNull { it.uuid.toString().lowercase().endsWith("005e-0000-1000-8000-00805f9b34fb") }
+                service.getCharacteristic(PROBE_UUID)?.let { probe ->
+                    runCatching { g.readCharacteristic(probe) }
                 }
                 if (writable == null || notifiable == null) {
                     log("FE95 特征不全：写=${writable?.uuid} 通知=${notifiable?.uuid}")
@@ -401,19 +433,10 @@ class MiWear(
     /* ------------------------------------------------------------------ */
 
     private fun drain(stream: ByteArrayOutputStream) {
-        val buf = stream.toByteArray()
-        val (list, rest) = FrameCodec.decode(profile, buf)
+        if (stream.size() == 0) return
+        val data = stream.toByteArray()
         stream.reset()
-        if (rest.isNotEmpty()) stream.write(rest)
-        for (f in list) {
-            log("← type=${f.type} len=${f.payload.size} ${FrameCodec.hex(f.payload.copyOfRange(0, minOf(16, f.payload.size)))}")
-            if (f.type == profile.authType) {
-                lastAuthReply = FrameCodec.hex(f.payload)
-            }
-            pending[f.type]?.let { if (!it.isCompleted) it.complete(f) }
-            synchronized(frameLock) { frames.addLast(f) }
-            onFrame?.invoke(f)
-        }
+        onRawData?.invoke(data)
     }
 
     suspend fun send(bytes: ByteArray) {
@@ -429,8 +452,8 @@ class MiWear(
     }
 
     /**
-     * Android 的 GATT 写入是异步且一次只能有一笔在途操作。连续写多个分片而不等
-     * onCharacteristicWrite，会在真实设备上静默丢包；这里串行化并等待每次回调。
+     * AstroBox Android 传输使用 WRITE_TYPE_NO_RESPONSE，并且每片之间让出 12 ms。
+     * 这里不依赖 onCharacteristicWrite（无响应写不保证回调），由 L1 ACK 负责可靠性。
      */
     private suspend fun writeBle(bytes: ByteArray) = writeLock.withLock {
         val g = gatt ?: throw IllegalStateException("未连接")
@@ -440,26 +463,23 @@ class MiWear(
         while (off < bytes.size) {
             val next = minOf(off + chunkSize, bytes.size)
             val slice = bytes.copyOfRange(off, next)
-            val slot = CompletableDeferred<Boolean>()
-            writeDeferred = slot
-            val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                g.writeCharacteristic(c, slice, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) ==
-                    BluetoothStatusCodes.SUCCESS
-            } else {
-                @Suppress("DEPRECATION")
-                run {
-                    c.value = slice
-                    c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                    g.writeCharacteristic(c)
+            var started = false
+            repeat(2) { attempt ->
+                started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    g.writeCharacteristic(c, slice, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) ==
+                        BluetoothStatusCodes.SUCCESS
+                } else {
+                    @Suppress("DEPRECATION")
+                    run {
+                        c.value = slice
+                        c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                        g.writeCharacteristic(c)
+                    }
                 }
+                if (!started && attempt == 0) delay(8)
             }
-            if (!started) {
-                writeDeferred = null
-                throw IllegalStateException("BLE 写特征忙，分片发送失败")
-            }
-            val ok = withTimeoutOrNull(3_000) { slot.await() } == true
-            writeDeferred = null
-            if (!ok) throw IllegalStateException("BLE 分片写入超时或被设备拒绝")
+            if (!started) throw IllegalStateException("BLE 写特征忙，分片发送失败")
+            delay(12)
             off = next
         }
     }
@@ -599,6 +619,9 @@ class MiWear(
     companion object {
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
         const val SERVICE_FE95 = "0000fe95-0000-1000-8000-00805f9b34fb"
+        val WRITE_UUID: UUID = UUID.fromString("0000005f-0000-1000-8000-00805f9b34fb")
+        val NOTIFY_UUID: UUID = UUID.fromString("0000005e-0000-1000-8000-00805f9b34fb")
+        val PROBE_UUID: UUID = UUID.fromString("00000050-0000-1000-8000-00805f9b34fb")
         val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 }

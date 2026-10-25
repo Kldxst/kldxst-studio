@@ -1,0 +1,43 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+message Gnss {
+
+    enum GnssID {
+        REQUEST_ONLINE = 0;
+        REQUEST_OFFLINE = 1;
+        REQUEST_GPS_INFO = 3;
+        SEND_GPS_INFO = 2;
+    }
+
+    oneof payload {
+        uint32 days = 1;
+        Data data = 2;
+        GpsInfo gps_info = 3;
+    }
+}
+
+message Data {
+
+    enum Type {
+        AGPS = 1;
+        BEIDOU = 2;
+        GALILEO = 3;
+    }
+
+    required Type type = 1;
+    required string source = 2;
+    optional uint32 days = 3;
+    optional bool need_gps_info = 4;
+    optional uint32 expected_slice_length = 5;
+}
+
+message GpsInfo {
+    required uint32 timestamp = 1;
+    required double longitude = 2;
+    required double latitude = 3;
+    optional double altitude = 4;
+}

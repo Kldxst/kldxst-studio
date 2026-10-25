@@ -1,0 +1,84 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+import "wear_account.proto";
+import "wear_system.proto";
+import "wear_watch_face.proto";
+import "wear_nfc.proto";
+import "wear_notification.proto";
+import "wear_fitness.proto";
+import "wear_lpa.proto";
+import "wear_weather.proto";
+import "wear_stock.proto";
+import "wear_calendar.proto";
+import "wear_factory.proto";
+import "wear_aivs.proto";
+import "wear_market.proto";
+import "wear_gnss.proto";
+import "wear_clock.proto";
+import "wear_media.proto";
+import "wear_alexa.proto";
+import "wear_thirdparty_app.proto";
+import "wear_contact.proto";
+import "wear_mass.proto";
+import "wear_interconnection.proto";
+
+message WearPacket {
+
+    enum Type {
+        OTHER = 0;
+        ACCOUNT = 1;
+        SYSTEM = 2;
+        WATCH_FACE = 4;
+        NFC = 5;
+        NOTIFICATION = 7;
+        FITNESS = 8;
+        LPA = 9;
+        WEATHER = 10;
+        STOCK = 11;
+        CALENDAR = 12;
+        FACTORY = 13;
+        AIVS = 14;
+        MARKET = 15;
+        GNSS = 16;
+        CLOCK = 17;
+        MEDIA = 18;
+        ALEXA = 19;
+        THIRDPARTY_APP = 20;
+        CONTACT = 21;
+        MASS = 22;
+        INTERCONNECTION = 23;
+    }
+
+    oneof payload {
+        Account account = 3;
+        System system = 4;
+        WatchFace watch_face = 6;
+        Nfc nfc = 7;
+        Notification notification = 9;
+        Fitness fitness = 10;
+        Lpa lpa = 11;
+        Weather weather = 12;
+        Stock stock = 13;
+        Calendar calendar = 14;
+        Factory factory = 15;
+        Aivs aivs = 16;
+        Market market = 17;
+        Gnss gnss = 18;
+        Clock clock = 19;
+        Media media = 20;
+        Alexa alexa = 21;
+        ThirdpartyApp thirdparty_app = 22;
+        Contact contact = 23;
+        Mass mass = 24;
+        Interconnection interconnection = 25;
+        ErrorCode error_code = 100;
+    }
+    
+    required Type type = 1;
+    required uint32 id = 2;
+}

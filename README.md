@@ -1,155 +1,113 @@
-# K社工坊 · Kldxst Studio
+# KdSync · 智能穿戴管理终端
 
-手环工作台：**自己占蓝牙直连设备**，管理作品、代发联网、查授权。当前版本 `1.1.0`。
-APK 只打包一次，界面与流程改动都在服务端（`studio.kldxst.me`）完成。
+**KdSync** 是 Kldxst 作品的独立穿戴管理终端：手机自己占蓝牙，直连小米手环/手表，
+不依赖小米运动健康代转。当前版本 `2.0.0`（versionCode 3）。
 
-```
-┌────────────────────────── APK（固定，不再重发） ──────────────────────────┐
-│  MainActivity ── WebView ──► https://studio.kldxst.me   ← 界面/流程/清单     │
-│        │                                                                   │
-│        └─ ConsoleBridge（来源白名单 + 会话令牌）                            │
-│              ├─ MiWear      直连：BLE(FE95) / SPP(0x1101) + authkey         │
-│              ├─ BridgeEngine 网桥（FetchBridge v1–v3）                      │
-│              └─ Vault       Keystore AES-GCM                               │
-└────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                     ┌──────────────┴───────────────┐
-                     │  Worker: kldxst-studio        │
-                     │  /            控制台单页       │
-                     │  /api/config  功能开关+策略     │
-                     │  /api/games   作品清单（代理）  │
-                     │  /api/license-status 授权查询  │
-                     └───────────────────────────────┘
-```
+- 包名：`com.kldxst.studio`
+- 显示名：`KdSync`
+- 主题：粉 `#FF6FA5` / 蓝 `#2563EB` / 黄 `#F5B400` 亮色系
+- 最低 Android 7.0（API 24），targetSdk 34，compileSdk 35
 
-## 账号与授权
+## 1. 这次 2.0 做了什么
 
-连接前需要 authkey，而 authkey 只能从小米账号取：
+1.0 的控制台依赖远端页面，协议层还是“magic + 单字节命令”的占位实现。2.0 把控制台
+打进 APK（`assets/console/index.html`，WebViewAssetLoader 本地加载），并把 MiWear
+协议按 AstroBox NG 公开源码完整重写：
 
 ```
-账号密码 → serviceLogin → serviceLoginAuth2 → sts → bledevice_info
-        → { did, mac, authkey } → 写入本机 → 连接设备
+L1 SAR  A5 A5 | type/frx | seq | len(u16 LE) | CRC16-ARC(payload)
+  ↓
+L2      channel + opcode + payload
+  ↓
+PB      WearPacket{type, id, oneof payload}  (proto2, protobuf-lite)
 ```
 
-端点与凭据字段来自对 AstroBox 2.2.0 的分析，见 `docs/RE-ASTROBOX.md`。
-设备授权用 **HMAC-SHA256(authkey, nonce)**，不是 AES。
+- **SPP**：`00001101-...`，先 insecure 再 secure，SDP 失败 fallback RFCOMM 5/1；
+  连接后先发 12 字节 Hello `BA DC FE 00 C0 03 00 00 01 00 EF`。
+- **BLE**：服务 `FE95`，写 `005f`，通知 `005e`，探测 `0050`；MTU 请求 247；
+  `WRITE_TYPE_NO_RESPONSE`，每片 12 ms。
+- **认证**：3 步 protobuf（Account 26/27）；HMAC-SHA256 KDF（tag `miwear-auth`）
+  派生 enc/dec key + nonce；AES-128-CCM（12B nonce / 4B tag）加密 CompanionDevice。
+- **L2 加密**：AES-128-CTR，key 同时作为 IV。
+- **MASS**：Prepare（type=22/id=0）→ 设备 `expected_slice_length` →
+  L2 Mass `total_parts|current_part|fragment`，fragment 为
+  `00|data_type|md5(16)|remaining_len(u32 LE)|data|crc32(u32 LE)`。
+- **业务消息**：设备信息 System 1/2/62；应用 ThirdpartyApp 0/1/2/3/4/8/9；
+  表盘 WatchFace 0/1/2/4/5；通知 Notification 0/1；时间 System 3。
+- **通知**：真实 `NotifyData` protobuf，`date` 固定本地 `yyyyMMdd'T'HHmmss`，
+  编码后 ≤16 KiB；通知转发与撤回使用同一 `NotifyId`。
+- **网桥**：`ThirdpartyApp.MessageContent`（type=20/id=9 收，id=8 发）承载
+  FetchBridge JSON；HTTP 出口继续走 SSRF/白名单/限流策略。
 
-## 连接方式：直连，无侧链
+> 设备列表接口在公开 AstroBox Account 源码里只有 DTO，没有请求实现；
+> KdSync 保留“账号登录 + 手动 authkey”两条路径，设备列表接口失败时可直接粘贴
+> authkey 连接。这是能力边界，不是伪装成功。
 
-不经过小米运动健康，不依赖任何第三方 App 代转。手机自己占蓝牙：
+## 2. 功能
 
-```
-扫描（BLE，识别 FE95 广播与产品号）
-   → 连接（SPP RFCOMM 0x1101 或 BLE GATT FE95）
-   → authkey 握手（AES-128-ECB）
-   → 帧收发（magic + 类型 + 长度 + 载荷）
-```
-
-使用前必须让小米运动健康让出蓝牙，否则 SPP 端口被占、GATT 连上也不通。
-
-## 能力现状
-
-| 能力 | 状态 |
+| 模块 | 能力 |
 |---|---|
-| BLE 扫描（FE95 识别、产品号、RSSI 排序） | ✅ |
-| SPP 连接（RFCOMM 0x1101） | ✅ |
-| BLE 连接（FE95 服务发现、CCCD 订阅、按 MTU 切片写） | ✅ |
-| 小米账号登录（取 authkey / did / mac） | ✅ |
-| authkey 握手（HMAC-SHA256，可切 AES 校准模式） | ⚠️ 帧已发出，回包语义待真机校准 |
-| 帧编解码（magic/类型与长度偏移/字节序/头长可配） | ✅ |
-| 命令层（消息号由服务端下发） | ⚠️ 消息号未校准，界面标「未校准」 |
-| 收包记录 / 手动发帧 / 按命令发空包 | ✅ |
-| 通知转发（系统通知 → 手环） | ⚠️ 依赖 notify 消息号；权限状态在控制台可见 |
-| 网桥（代发 HTTP，v1–v3，自动重连） | ✅ |
-| 网桥协议自检（无需手环） | ✅ |
-| 安装包体检（manifest / SHA-256 / 路径穿越 / 解压上限） | ✅ |
-| 授权状态查询（全作品） | ✅ |
-| 安装 / 卸载 / 表盘 / 音乐 / 固件 | ⚠️ 命令位已留，等消息号 |
+| 设备 | BLE 扫描、SPP/BLE 连接、authkey 认证、设备信息/电量/存储、对时、协议日志 |
+| 应用 | 读取已安装快应用、启动、卸载；本地 `.rpk` 体检并通过 MASS 安装 |
+| 表盘 | 读取/切换/删除表盘；本地 `.face` 通过 MASS 安装（需提供表盘 id） |
+| 通知 | 手动推送、系统通知转发/撤回（需通知使用权） |
+| 网桥 | FetchBridge v1–v4（流式不声明）、域名白名单、SSRF 防护、自检 |
+| Kldxst | 内置作品入口（幽径/拆招/神之一手/星环/末日之后/诡秘之主），统一 RPK 安装流程 |
+| 账号 | 小米 serviceLogin → serviceLoginAuth2 → STS → serviceToken；可选手动 authkey |
+| 安全 | Keystore AES-GCM 保存凭据；控制台来源白名单 + 会话令牌；只允许 HTTPS |
 
-### 为什么有一列是「待校准」
+## 3. 本地构建（已配置）
 
-AzkiDeck 把 MiWear 协议编译进 2.2MB 的 `libazvfnative.so`，AstroBox 的 core 闭源，
-两者都没有公开消息集。本仓库把**能确定的部分**（扫描、连接、帧结构、authkey 加密、
-命令分发、网桥、哈希校验）全部实现，把**不能确定的部分**（每个业务消息的类型字节与载荷格式）
-做成服务端下发的参数：
+本仓库现在同时支持本地 Android SDK 和 GitHub Actions：
 
-```
-设置 → 协议参数 → 命令消息号：{"notify":16,"applist":32,"install":33,…}
+```powershell
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot'
+$env:Path="$env:JAVA_HOME\bin;C:\Users\16152\Tools\gradle\gradle-8.7\bin;$env:Path"
+gradle --no-daemon :app:testDebugUnitTest
+gradle --no-daemon :app:assembleRelease
 ```
 
-真机上抓到一帧就能填一个，填完立即生效，**不需要重新打包**。这是本项目对「协议未知」
-唯一诚实的处理方式：不假装功能已经可用。
+`local.properties` 指向 `C:\Users\16152\AppData\Local\Android\Sdk`。release 签名读取
+`keystore.properties`（已被 `.gitignore` 排除；CI 由 secrets 还原）。
 
-## 界面
+GitHub Actions 仍是主发布路径：push `main` → unit test → assembleRelease →
+下载 `kldxst-studio-apk` artifact。
 
-亮色主题，蓝 `#2563EB` / 黄 `#F5B400` / 粉 `#FF6FA5`，四页：设备 / 应用 / 网桥 / 设置。
-
-## 权限
-
-首次打开会请求通知、附近设备（Android 12+）或定位（Android 11 及以下）权限。
-拒绝后「设备」页会显示缺失项，可点「授权」重试，或点「系统设置」手动打开。
-通知转发还需要系统的「通知使用权」，在「设置 → 通知转发」里跳转授权。
-
-前台服务只在已保存设备、且已授予蓝牙连接权限时启动；用户主动「断开」或「停止网桥」
-会同时关闭自动重连。
-
-## 安全设计
-
-- 只走 TLS，关闭明文、不信任用户 CA。
-- 控制台三道闸：来源白名单 → 会话令牌 → 每个方法自行校验入参；令牌通过
-  `document-start` 注入，避免页面脚本启动时拿不到令牌。
-- 网桥 SSRF 防护：只允许 https、禁 userinfo、禁非 443 端口、内网/回环/链路本地/ULA
-  一律拒绝；一次解析的结果直接钉进 OkHttp 的 `Dns`，消除 rebinding 窗口。
-- 跨源重定向剥凭据，最多 10 跳；响应边读边计数，超过上限即截断，不先整包进内存。
-- authkey、协议参数、网桥策略存 Keystore AES-256-GCM 加密后的密文；仓库无任何私钥。
-- 资源包用中央目录检查路径穿越与条目上限，manifest 读取有 512KB 上限。
-
-## 构建
-
-**不需要在本地安装 Android SDK/JDK**。本项目按模板使用 GitHub Actions：
-
-```text
-push main
-  → Actions / build-apk
-  → testDebugUnitTest
-  → assembleRelease
-  → 下载 kldxst-studio-apk 产物
-```
-
-工作流固定 JDK 17 + Gradle 8.7。签名 secrets：`ANDROID_KEYSTORE_BASE64` /
-`ANDROID_STORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`；未配置时产物为
-debug 签名，不能覆盖安装正式包。
-
-1.1.0 的构建记录与 SHA-256 见 `docs/RELEASE_1.1.0.md`，仓库内 `out/app-release.apk` 是同一产物。
-
-## 部署控制台
-
-```bash
-cd console
-npx wrangler secret put STUDIO_SECRET
-npx wrangler deploy                     # 绑定 studio.kldxst.me
-```
-
-改完 `console/public/index.html` 再 `deploy` 一次即可，用户无需重装。
-
-## 目录
+## 4. 目录
 
 ```
-app/src/main/java/com/kldxst/studio/
-  MainActivity.kt            WebView 容器 + 来源/令牌注入 + 离线兜底页
-  console/ConsoleBridge.kt   页面 ⇄ 原生 的唯一入口（三道闸）
-  bt/MiWear.kt               直连：扫描 / SPP / BLE / authkey / 命令
-  bt/FrameCodec.kt           帧编解码与协议参数
-  bridge/BridgeEngine.kt     FetchBridge v1–v3 协议引擎（可单测）
-  bridge/SsrfGuard.kt        出口守卫
-  install/Rpk.kt             资源包体检
-  secure/Vault.kt            Keystore AES-GCM
-  service/StudioService.kt   前台服务（直连常驻 + 网桥）
-  service/NotifyRelay.kt     通知转发
-console/
-  public/index.html          控制台单页（改这里不用重装 APK）
-  src/index.js               Worker API
+app/src/main/
+  assets/console/index.html   本地控制台（KdSync UI，粉蓝黄亮色）
+  proto/*.proto               AstroBox 同源 protobuf（生成 com.kldxst.studio.proto）
+  java/com/kldxst/studio/
+    wear/MiWearFrame.kt        L1 帧 / L2 包 / CRC16-ARC
+    wear/MiWearCrypto.kt       KDF / AES-CTR / AES-CCM
+    wear/MiWearSession.kt      SAR 会话 / auth / PB 请求分发
+    wear/WearCommands.kt       设备信息 / 应用 / 通知 / MASS
+    wear/WatchFaceCommands.kt  表盘列表 / 切换 / 安装
+    bt/MiWear.kt               SPP/BLE 原生传输（FE95/005f/005e/0050）
+    core/WearController.kt     设备管理门面（UI/服务共用）
+    console/ConsoleBridge.kt   JS ⇄ 原生唯一入口
+    bridge/BridgeEngine.kt     FetchBridge 引擎
+    service/StudioService.kt   前台服务：重连 + 网桥 + 通知
+    service/NotifyRelay.kt     通知转发/撤回
 docs/
-  TEXT-RULES.md              文案硬性要求
-  shots/                     界面图与流程图
+  PROTOCOL.md                  可直接落地的协议摘要
+  REVERSE_ANALYSIS.md          AstroBox / AzkiDeck / Mi Fitness 逆向结论
 ```
+
+## 5. 已知边界
+
+- 没有真机/真实账号的情况下，无法验证 authkey 与具体型号的兼容性；协议帧、KDF、
+  CCM、MASS 均有单元测试覆盖，但设备侧仍需一次真机握手确认。
+- `.face` 的 id 需要从资源包 manifest 读取；KdSync 不猜测 id，避免覆盖现有表盘。
+- 固件 `.bin` 的 OTA 流程风险高，2.0 只读取固件版本，不提供一键刷机入口。
+- 小米设备列表接口受服务端/风控影响；失败时使用手动 authkey。
+- FetchBridge 与 AstroBox 的 `FrontBridge` 不是同一个东西；KdSync 的网桥是
+  自定义 JSON 代理，承载在 `ThirdpartyApp.MessageContent` 上。
+
+## 6. 版本记录
+
+- `1.1.0`：远端控制台 + 直连占位协议，见 `docs/RELEASE_1.1.0.md`。
+- `2.0.0`：本地控制台、真实 L1/L2/PB、authkey 三步认证、MASS 安装、表盘、
+  通知 protobuf、设备管理门面、单元测试。

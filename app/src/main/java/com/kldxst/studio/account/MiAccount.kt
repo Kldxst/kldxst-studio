@@ -66,7 +66,7 @@ object MiApi {
     const val PATH_LOGIN = "/pass/serviceLogin"
     const val PATH_LOGIN_AUTH2 = "/pass/serviceLoginAuth2"
     const val PATH_STS = "/healthapp/sts"
-    const val PATH_DEVICES = "/healthapp/device/bledevice_info"
+    const val PATH_DEVICES = "/healthapp/v2/home/local_device_list"
 }
 
 /**
@@ -80,16 +80,36 @@ object MiApi {
  */
 object MiSign {
 
-    fun signedNonce(ssecurityB64: String): String {
-        val ssecurity = decodeB64(ssecurityB64) ?: ByteArray(0)
-        val nonce = ByteArray(12).also { Random.nextBytes(it) }
-        val hash = MessageDigest.getInstance("SHA-256").digest(ssecurity + nonce)
-        return encodeB64(ssecurity.copyOfRange(0, minOf(4, ssecurity.size)) + nonce + hash)
+    /** 8B 随机 + 4B 分钟时间戳（大端），base64；对齐 AstroBox 的 generate_nonce。 */
+    fun nonce(): String {
+        val random = ByteArray(8).also { Random.nextBytes(it) }
+        val minutes = (System.currentTimeMillis() / 60_000).toInt()
+        val time = byteArrayOf(
+            (minutes ushr 24).toByte(),
+            (minutes ushr 16).toByte(),
+            (minutes ushr 8).toByte(),
+            minutes.toByte()
+        )
+        return encodeB64(random + time)
     }
 
+    /** signed_nonce = base64(SHA256(ssecurity_b64_dec + nonce_b64_dec)) */
+    fun signedNonce(ssecurityB64: String, nonceB64: String = nonce()): String {
+        val ssecurity = decodeB64(ssecurityB64) ?: ByteArray(0)
+        val nonce = decodeB64(nonceB64) ?: ByteArray(0)
+        val hash = MessageDigest.getInstance("SHA-256").digest(ssecurity + nonce)
+        return encodeB64(hash)
+    }
+
+    /** 小米 RC4 签名：SHA1(METHOD&path&k=v...&signedNonce)，base64。 */
     fun sign(method: String, path: String, queryOrBody: String, signedNonce: String): String {
-        val text = "$method\n$path\n$queryOrBody\n$signedNonce"
-        return encodeB64(MessageDigest.getInstance("SHA-256").digest(text.toByteArray()))
+        val raw = if (queryOrBody.isBlank()) {
+            "${method.uppercase()}&$path&$signedNonce"
+        } else {
+            "${method.uppercase()}&$path&$queryOrBody&$signedNonce"
+        }
+        val sha1 = MessageDigest.getInstance("SHA-1").digest(raw.toByteArray())
+        return encodeB64(sha1)
     }
 
     fun md5Upper(s: String): String =

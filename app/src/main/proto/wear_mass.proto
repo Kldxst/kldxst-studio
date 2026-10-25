@@ -1,0 +1,50 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+message Mass {
+
+    enum MassID {
+        PREPARE = 0;
+        CONTROL = 1;
+    }
+
+    oneof payload {
+        PrepareRequest prepare_request = 1;
+        PrepareResponse prepare_response = 2;
+        MassControl mass_control = 3;
+    }
+
+}
+
+message PrepareRequest {
+    required uint32 data_type = 1;
+    required bytes data_id = 2;
+    required uint32 data_length = 3;
+    optional uint32 support_compress_mode = 4;
+}
+
+message PrepareResponse {
+    required bytes data_id = 1;
+    required PrepareStatus prepare_status = 2;
+    optional uint32 select_compress_mode = 3;
+    optional uint32 remained_data_length = 4;
+    optional uint32 expected_slice_length = 5;
+}
+
+message MassControl {
+
+    enum Op {
+        PAUSE = 1;
+        CANCEL = 2;
+        ERROR = 3;
+    }
+
+    required Op op = 1;
+    required uint32 data_type = 2;
+    required bytes data_id = 3;
+}

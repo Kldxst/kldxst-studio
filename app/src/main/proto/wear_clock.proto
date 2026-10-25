@@ -1,0 +1,175 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum ClockError {
+    EXCEED_LIMIT = 1;
+    INVALID_ID = 2;
+    INVALID_DATA = 3;
+    NOT_SUPPORT_HOLIDAY = 4;
+}
+
+enum WorldClockResult {
+    OPERATE_SUCCESS = 0;
+    ID_NOT_SUPPORT = 1;
+    OVER_LIMIT = 2;
+}
+
+message Clock {
+
+    enum ClockID {
+        GET_CLOCK_LIST = 0;
+        ADD_CLOCK = 1;
+        UPDATE_CLOCK = 2;
+        REMOVE_CLOCK = 3;
+        REMOVE_CLOCKS = 4;
+        ENABLE_OR_DISABLE_CLOCK = 5;
+        GET_REMINDER_LIST = 14;
+        ADD_REMINDER = 15;
+        UPDATE_REMINDER = 17;
+        REMOVE_REMINDERS = 18;
+        SYNC_REMINDER_LIST = 19;
+        MARK_REMINDER = 20;
+        REQUEST_REMINDERS = 21;
+        SYNC_HOLIDAY = 6;
+        WEAR_REQUEST_HOLIDAY = 7;
+        GET_WORK_AND_REST = 8;
+        SET_WORK_AND_REST = 9;
+        GET_WORLD_CLOCK_LIST = 10;
+        ADD_WORLD_CLOCK = 11;
+        REMOVE_WORLD_CLOCK = 12;
+        REMOVE_WORLD_CLOCKS = 13;
+        PHONE_ALARM_OPERATION = 16;
+    }
+
+    oneof payload {
+        ClockInfo.List clock_info_list = 1;
+        ClockInfo.Data clock_data = 2;
+        ClockInfo clock_info = 3;
+        uint32 id = 4;
+        ClockIdList clock_id_list = 5;
+        bool enable = 6;
+        ClockHoliday clock_holiday = 7;
+        ClockError clock_error = 8;
+        WorkAndRest work_and_rest = 9;
+        ReminderInfo.List reminder_info_list = 10;
+        WorldClockIdList world_clock_id_list = 11;
+        string world_clock_id = 12;
+        WorldClockResult world_clock_result = 13;
+        ReminderInfo.Data reminder_data = 14;
+        ReminderInfo reminder_info = 15;
+        PhoneAlarm.Operation phone_alarm_operation = 16;
+        ReminderIdList reminder_id_list = 17;
+        ReminderInfo.Mark reminder_mark = 18;
+    }
+}
+
+message ClockInfo {
+
+    message Data {
+        required Time time = 2;
+        required ClockMode clock_mode = 3;
+        optional uint32 week_days = 4;
+        required bool enable = 5;
+        required string label = 6;
+    }
+
+    message List {
+        repeated ClockInfo list = 1;
+        optional uint32 support_max_clocks = 2;
+    }
+
+    required uint32 id = 1;
+    required Data data = 2;
+}
+
+message ClockIdList {
+    repeated uint32 id = 1;
+}
+
+message WorkAndRest {
+
+    enum Source {
+        NONE = 0;
+        MIUI = 1;
+        MANUAL = 2;
+    }
+
+    message Data {
+        required Time bedtime = 1;
+        required Time getup_time = 2;
+        required sint32 remind_bed = 3;
+    }
+
+    required Source source = 1;
+    optional Data data = 2;
+}
+
+message WorldClockIdList {
+    repeated string id = 1;
+}
+
+message PhoneAlarm {
+
+    enum OpCode {
+        ALERT = 0;
+        DISMISS = 1;
+        SNOOZE = 2;
+    }
+
+    message Operation {
+        required OpCode op_code = 1;
+        required PhoneAlarm phone_alarm = 2;
+    }
+
+    required uint32 id = 1;
+    optional uint32 alert_time = 2;
+    required string label = 3;
+}
+
+message ReminderInfo {
+
+    message List {
+        repeated ReminderInfo list = 1;
+        optional uint32 support_max_reminders = 2;
+    }
+
+    message SubTodo {
+        required uint32 id = 1;
+        required uint32 status = 2;
+        required string content = 3;
+        optional bool truncated = 4;
+    }
+
+    message Data {
+        required Date date = 1;
+        required Time time = 2;
+        required ClockMode clock_mode = 3;
+        optional uint32 week_days = 4;
+        required string label = 5;
+        optional bool truncated = 6;
+        optional uint32 source = 7;
+        optional uint32 status = 8;
+        optional uint64 update_time = 9;
+        repeated SubTodo sub_list = 10;
+    }
+
+    message Mark {
+        required uint32 id = 1;
+        optional uint32 source = 2;
+        required uint32 status = 3;
+        required uint64 update_time = 4;
+        repeated SubTodo sub_list = 5;
+    }
+
+    required uint32 id = 1;
+    required Data data = 2;
+}
+
+message ReminderIdList {
+    repeated uint32 id = 1;
+}

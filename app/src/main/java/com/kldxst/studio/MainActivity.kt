@@ -8,8 +8,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebChromeClient.FileChooserParams
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -17,6 +21,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.kldxst.studio.console.ConsoleBridge
@@ -39,6 +44,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var web: WebView
     private lateinit var bridge: ConsoleBridge
     private val token: String = randomToken()
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private val assetLoader by lazy {
+        WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+    }
+    private val fileLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            fileCallback?.onReceiveValue(uri?.let { arrayOf(it) })
+            fileCallback = null
+        }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -96,15 +112,37 @@ class MainActivity : AppCompatActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
-            settings.allowContentAccess = false
+            // 本地 .rpk 选择器通过 content:// 交给 WebView 读取；只允许用户主动选择的文件。
+            settings.allowContentAccess = true
             settings.setSupportMultipleWindows(false)
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.mediaPlaybackRequiresUserGesture = true
-            settings.userAgentString = settings.userAgentString + " KldxstStudio/${BuildConfig.VERSION_NAME}"
+            settings.userAgentString = settings.userAgentString + " KdSync/${BuildConfig.VERSION_NAME}"
             addJavascriptInterface(bridge, "Kldxst")
             webViewClient = Client()
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    view: WebView,
+                    callback: ValueCallback<Array<Uri>>,
+                    params: FileChooserParams
+                ): Boolean {
+                    fileCallback?.onReceiveValue(null)
+                    fileCallback = callback
+                    return runCatching {
+                        val types = params.acceptTypes
+                            .filter { it.isNotBlank() }
+                            .map { if (it.contains('/')) it else "*/*" }
+                            .toTypedArray()
+                        fileLauncher.launch(if (types.isEmpty()) arrayOf("*/*") else types)
+                        true
+                    }.getOrElse {
+                        fileCallback = null
+                        false
+                    }
+                }
+            }
         }
 
         // 页面脚本一执行就需要令牌。onPageFinished 注入太晚，因此优先使用
@@ -173,6 +211,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private inner class Client : WebViewClient() {
+
+        override fun shouldInterceptRequest(
+            view: WebView,
+            request: WebResourceRequest
+        ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
 
         override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
             super.onPageStarted(view, url, favicon)

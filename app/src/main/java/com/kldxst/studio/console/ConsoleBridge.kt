@@ -1,6 +1,7 @@
 package com.kldxst.studio.console
 
 import android.Manifest
+import android.util.Base64
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -181,7 +182,11 @@ class ConsoleBridge(
             require(key.matches(Regex("[0-9a-fA-F]{32}"))) { "authkey 格式异常" }
             Vault.set("authkey", key)
             dev.mac?.let { Vault.set("device.address", it.uppercase()) }
-            ok(JSONObject().put("device", dev.toJson()).put("address", dev.mac ?: JSONObject.NULL))
+            ok(
+                JSONObject()
+                    .put("device", dev.toJson().put("authkey", key))
+                    .put("address", dev.mac ?: JSONObject.NULL)
+            )
         }
 
         "account.logout" -> {
@@ -199,23 +204,7 @@ class ConsoleBridge(
             ok(p.toJson())
         }
 
-        "device.status" -> {
-            val peer = Hub.wear.peer
-            ok(
-                JSONObject()
-                    .put("available", Hub.wear.available())
-                    .put("connected", Hub.wear.connected)
-                    .put("transport", Hub.wear.transport)
-                    .put("authenticated", Hub.wear.authenticated)
-                    .put("authState", Hub.wear.authState)
-                    .put("lastAuthReply", Hub.wear.lastAuthReply ?: JSONObject.NULL)
-                    .put("peer", peer?.let {
-                        JSONObject().put("name", it.name).put("address", it.address)
-                    } ?: JSONObject.NULL)
-                    .put("bonded", JSONObject.wrap(Hub.wear.bonded().map { it.name + "|" + it.address }))
-                    .put("ops", JSONObject.wrap(Hub.wear.ops()))
-            )
-        }
+        "device.status" -> ok(Hub.wearController.statusJson())
 
         "device.scan" -> {
             val ms = a.optInt("durationMs", 8000).coerceIn(3000, 20000).toLong()
@@ -233,31 +222,47 @@ class ConsoleBridge(
             val address = a.optString("address")
             require(address.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) { "MAC 地址格式不对" }
             val transport = a.optString("transport", "spp").lowercase()
-            val name = if (transport == "ble") Hub.wear.connectGatt(address) else Hub.wear.connectSpp(address)
+            val key = a.optString("authkey")
+                .takeIf { it.matches(Regex("[0-9a-fA-F]{32}")) }
+                ?: Vault.get("authkey")
+            val name = Hub.wearController.connect(address, transport, key)
             // 记住这台设备：前台服务重连时要用
             Vault.set("device.address", address.uppercase())
             Vault.set("device.transport", Hub.wear.transport)
+            if (!key.isNullOrBlank()) Vault.set("authkey", key)
             // 用户主动连接即视为要保持连接；没有通知权限时服务内部会安全降级。
             StudioService.start(ctx)
-            ok(JSONObject().put("device", name).put("transport", Hub.wear.transport))
+            ok(Hub.wearController.statusJson().put("device", name).put("transport", Hub.wear.transport))
         }
 
         "device.auth" -> {
-            val key = a.optString("authkey")
+            val key = a.optString("authkey").ifBlank { Vault.get("authkey") ?: "" }
             require(key.matches(Regex("[0-9a-fA-F]{32}"))) { "authkey 应为 32 位十六进制" }
-            ok(Hub.wear.auth(key))
+            Hub.wearController.authenticate(key)
+            Vault.set("authkey", key)
+            ok(Hub.wearController.statusJson())
+        }
+
+        "device.refresh" -> {
+            Hub.wearController.refresh()
+            ok(Hub.wearController.statusJson())
         }
 
         "device.close" -> {
             prefs().edit().putBoolean("bridge.autoStart", false).apply()
             StudioService.stop(ctx)
-            Hub.wear.close()
+            Hub.wearController.disconnect()
             ok(JSONObject())
         }
 
         "device.frames" -> {
             val limit = a.optInt("limit", 40).coerceIn(1, 200)
-            ok(JSONObject().put("frames", JSONObject.wrap(Hub.wear.recent(limit))))
+            ok(JSONObject().put("frames", JSONObject.wrap(Hub.log.tail(limit))))
+        }
+
+        "device.syncTime" -> {
+            Hub.wearController.syncTime(a.optBoolean("is24Hour", true))
+            ok(JSONObject())
         }
 
         /** 原始帧：校准期手动发一帧，把回包原样拿回来看 */
@@ -282,12 +287,112 @@ class ConsoleBridge(
             ok(Hub.wear.command(op, payload, timeout))
         }
 
-        /** 通知：文本按 UTF-8 直接进 payload（多数固件用 JSON 文本承载） */
+        /** 通知：真实 NotifyData protobuf，date 用本地 yyyyMMdd'T'HHmmss。 */
         "notify.push" -> {
             val title = a.optString("title").take(64)
-            val body = a.optString("body").take(400)
-            val json = JSONObject().put("title", title).put("body", body).put("at", System.currentTimeMillis())
-            ok(Hub.wear.command("notify", FrameCodec.utf8(json.toString()), 4000))
+            val body = a.optString("body").take(1200)
+            val appName = a.optString("appName", "KdSync").take(48)
+            Hub.wearController.notify(title, body, appName)
+            ok(JSONObject())
+        }
+
+        "apps.list" -> {
+            Hub.wearController.loadApps()
+            ok(Hub.wearController.statusJson())
+        }
+
+        "apps.launch" -> {
+            val pkg = a.optString("package")
+            require(pkg.isNotBlank()) { "缺少包名" }
+            val app = Hub.wearController.apps.firstOrNull { it.packageName == pkg }
+                ?: throw IllegalStateException("设备应用列表里没有 $pkg")
+            Hub.wearController.launch(app, a.optString("uri"))
+            ok(JSONObject())
+        }
+
+        "apps.remove" -> {
+            val pkg = a.optString("package")
+            val app = Hub.wearController.apps.firstOrNull { it.packageName == pkg }
+                ?: throw IllegalStateException("设备应用列表里没有 $pkg")
+            Hub.wearController.uninstall(app)
+            ok(Hub.wearController.statusJson())
+        }
+
+        /**
+         * 本地文件安装：页面把 .rpk 读成 base64（WebView 文件选择器），
+         * 原生落盘 + Rpk 体检后再走 ThirdpartyApp PREPARE → MASS → 结果。
+         */
+        "apps.installBase64" -> withContext(Dispatchers.IO) {
+            val b64 = a.optString("data")
+            require(b64.isNotBlank()) { "文件内容为空" }
+            require(b64.length <= 90 * 1024 * 1024) { "文件超过 64MB 上限" }
+            val bytes = Base64.decode(b64, Base64.DEFAULT)
+            val name = a.optString("name", "package.rpk").replace(Regex("[^A-Za-z0-9._-]"), "_")
+            val dir = File(ctx.cacheDir, "rpk").apply { mkdirs() }
+            val file = File(dir, name)
+            file.writeBytes(bytes)
+            val info = Rpk.inspect(file)
+            info.error?.let { throw IllegalStateException(it) }
+            val pkg = a.optString("package").ifBlank { info.packageName ?: "" }
+            require(pkg.isNotBlank()) { "无法从 manifest 读取包名，请手动填写" }
+            val result = Hub.wearController.installQuickApp(pkg, bytes)
+            ok(JSONObject()
+                .put("package", pkg)
+                .put("result", result.code)
+                .put("message", result.message)
+                .put("status", Hub.wearController.statusJson()))
+        }
+
+        "apps.installPath" -> withContext(Dispatchers.IO) {
+            val path = a.optString("path")
+            val root = File(ctx.cacheDir, "rpk").canonicalFile
+            val file = File(path).canonicalFile
+            require(file.path.startsWith(root.path + File.separator)) { "只允许安装缓存目录内的体检文件" }
+            require(file.isFile && file.length() <= 64L * 1024 * 1024) { "文件不存在或超过 64MB" }
+            val info = Rpk.inspect(file)
+            info.error?.let { throw IllegalStateException(it) }
+            val pkg = a.optString("package").ifBlank { info.packageName ?: "" }
+            require(pkg.isNotBlank()) { "无法从 manifest 读取包名" }
+            val result = Hub.wearController.installQuickApp(pkg, file.readBytes())
+            ok(JSONObject()
+                .put("package", pkg)
+                .put("result", result.code)
+                .put("message", result.message)
+                .put("status", Hub.wearController.statusJson()))
+        }
+
+        "watchfaces.list" -> {
+            Hub.wearController.loadWatchFaces()
+            ok(Hub.wearController.statusJson())
+        }
+
+        "watchfaces.set" -> {
+            val id = a.optString("id")
+            require(id.isNotBlank()) { "缺少表盘 id" }
+            Hub.wearController.setWatchFace(id)
+            ok(JSONObject())
+        }
+
+        "watchfaces.remove" -> {
+            val id = a.optString("id")
+            require(id.isNotBlank()) { "缺少表盘 id" }
+            Hub.wearController.removeWatchFace(id)
+            ok(JSONObject())
+        }
+
+        "watchfaces.installBase64" -> withContext(Dispatchers.IO) {
+            val id = a.optString("id")
+            require(id.isNotBlank()) { "缺少表盘 id" }
+            val b64 = a.optString("data")
+            require(b64.isNotBlank()) { "文件内容为空" }
+            require(b64.length <= 90 * 1024 * 1024) { "文件超过 64MB 上限" }
+            val bytes = Base64.decode(b64, Base64.DEFAULT)
+            val result = Hub.wearController.installWatchFace(id, bytes)
+            ok(JSONObject()
+                .put("id", id)
+                .put("result", result.code)
+                .put("message", result.message)
+                .put("status", Hub.wearController.statusJson()))
         }
 
         "bridge.start" -> {

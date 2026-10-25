@@ -1,0 +1,258 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum IssueCardStatus {
+    START = 0;
+    CONTINUE = 3;
+    SUCCESS = 1;
+    FAILURE = 2;
+}
+
+enum IssueCardType
+{
+    DOOR_CARD = 0;
+    BUS_CARD = 1;
+    UNION_PAY_CARD = 2;
+    CLOUD_CARD = 3;
+    MASTER_CARD = 4;
+    CAR_KEY = 5;
+    CAR_KEY_ICCOA = 7;
+    CAR_KEY_BYD = 8;
+    EASY_CARD = 6;
+}
+
+message Nfc {
+
+    enum NfcID
+    {
+        COMMAND = 0;
+        ISSUE_CARD = 1;
+        ADD_CARD = 2;
+        DEL_CARD = 3;
+        SYNC_CARD_LIST = 4;
+        SET_DEFAULT_CARD = 5;
+        GET_DEFAULT_CARD = 6;
+        SET_BALANCE = 7;
+        GET_BALANCE = 8;
+        SET_CONFIG = 9;
+        CAPABILITY_SET = 10;
+        COMMAND_BATCH = 16;
+        GET_CARD_SWITCHER_TIME = 11;
+        UPDATE_CARD_SWITCHER_TIME = 12;
+        ADD_CARD_SWITCHER_TIME = 13;
+        REMOVE_CARD_SWITCHER_TIME = 14;
+        GET_CARD_SWITCHER_SMART = 21;
+        SET_CARD_SWITCHER_SMART = 22;
+        NOTIFY_CARD_STICK = 15;
+        OPEN_TAI = 17;
+        PROBE_SECTOR = 18;
+        CLOSE_TAI = 19;
+        CRACK_SECTORS = 20;
+    }
+
+    oneof payload {
+        bytes command = 1;
+        IssueCard issue_card = 2;
+        CardData card_data = 3;
+        CardInfo card_info = 4;
+        CardInfo.List card_info_list = 5;
+        string aid = 6;
+        BalanceInfo balance_info = 7;
+        string config = 8;
+        CommandInfo.List command_info_list = 9;
+        uint32 capability = 10;
+        CardSwitcher.List card_switcher_list = 11;
+        CardSwitcher card_switcher = 12;
+        CardSwitcher.Result card_switcher_result = 13;
+        SuperCardData super_card_data = 14;
+        ProbeSector.Request probe_request = 15;
+        ProbeSector.Response probe_response = 16;
+        SectorKey.List key_list = 17;
+        CrackCardData crack_card_data = 18;
+        CardSwitcher.Smart card_switcher_smart = 19;
+    }
+
+}
+
+message IssueCard {
+    required IssueCardStatus status = 1;
+    optional IssueCardType type = 2;
+    optional bool need_read_card = 3;
+    required string icon_url = 4;
+    required string sid = 5;
+}
+
+message CardData {
+    required bytes uid = 1;
+    required uint32 sak = 2;
+    required bytes atqa = 3;
+    required uint32 size = 4;
+    required string content = 5;
+}
+
+message CardInfo {
+
+    message TlvHciRule {
+        required string aid = 1;
+        required uint32 data_offset = 2;
+        required string hci_prefix = 3;
+        repeated string trade_amount_tags = 4;
+        optional uint32 trade_amount_offset = 5;
+        repeated string balance_tags = 6;
+        optional uint32 balance_offset = 7;
+    }
+
+    message List {
+        repeated CardInfo list = 1;
+        optional bool full = 2;
+    }
+
+    required IssueCardType type = 1;
+    required string aid = 2;
+    required string name = 3;
+    required string icon_url = 4;
+    required string sid = 5;
+    optional uint32 balance = 6;
+    optional bool support_hci = 7;
+    optional uint32 trade_length = 8;
+    optional uint32 trade_offset = 9;
+    optional uint32 balance_offset = 10;
+    repeated TlvHciRule tlv_hci_rule = 11;
+    repeated string balance_command = 12;
+    required bytes car_key_id = 13;
+}
+
+message BalanceInfo {
+    required string aid = 1;
+    required uint32 balance = 2;
+}
+
+message CommandInfo {
+
+    message List {
+        repeated CommandInfo list = 1;
+    }
+
+    required bytes data = 1;
+    required string expect_status = 2;
+}
+
+message CardSwitcher {
+
+    message List {
+        repeated CardSwitcher list = 1;
+    }
+
+    message Result {
+
+        enum Code
+        {
+            SUCCESS = 0;
+            AID_NOT_FOUND = 1;
+            TIME_CONFLICT = 2;
+            FAIL = 10;
+        }
+
+        required uint32 code = 1;
+        required string conflict_aid = 2;
+    }
+
+    message Smart {
+        required bool enabled = 1;
+        repeated string aid = 2;
+    }
+
+    required string aid = 1;
+    repeated Time time = 2;
+}
+
+message BasicCardData {
+    required bytes uid = 1;
+    required uint32 sak = 2;
+    required bytes atqa = 3;
+    required uint32 size = 4;
+}
+
+message Sector {
+    required uint32 index = 1;
+    required bool enctypted = 2;
+    optional bytes key_a = 3;
+    optional bytes key_b = 4;
+    optional bytes content = 5;
+}
+
+message SuperCardData {
+    required BasicCardData basic_card_data = 1;
+    repeated Sector sectors = 2;
+}
+
+message ProbeSector {
+
+    message KeyInfo {
+        required bool found_key_a = 1;
+        required bool found_key_b = 2;
+        optional bytes key_a_list = 3;
+        optional bytes key_b_list = 4;
+    }
+
+    message Tag {
+        required uint32 auth_uid = 1;
+        required uint32 index = 2;
+        required KeyInfo key_info = 3;
+    }
+
+    message Nonce {
+        required uint32 median = 1;
+        required uint32 deviation = 2;
+        repeated uint32 distances = 3;
+    }
+
+    message Data {
+        required uint32 median = 1;
+        required uint32 deviation = 2;
+        required uint32 nt = 3;
+        required uint32 nte = 4;
+        required bytes parity = 5;
+    }
+
+    message Request {
+        required uint32 index = 1;
+        required uint32 mode = 2;
+        required Tag tag = 3;
+        required Nonce nonce = 4;
+        required bool dump_key_a = 5;
+    }
+
+    message Response {
+        required int32 code = 1;
+        optional Nonce nonce = 2;
+        optional Data data = 3;
+    }
+
+}
+
+message SectorKey {
+
+    message List {
+        repeated SectorKey list = 1;
+    }
+
+    required uint32 index = 1;
+    repeated bytes keys = 2;
+}
+
+message CrackSector {
+    required Sector sector = 1;
+    required uint32 key_index = 2;
+}
+
+message CrackCardData {
+    required BasicCardData basic_card_data = 1;
+    repeated CrackSector crack_sectors = 2;
+    required uint32 cost_time = 3;
+}

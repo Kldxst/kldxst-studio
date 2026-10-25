@@ -1,0 +1,255 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum RecordType {
+    RECORD_NORMAL = 0;
+    RECORD_REALTIME = 1;
+    RECORD_MUSIC = 2;
+    RECORD_TRANSLATION = 3;
+    RECORD_TRANSLATION_FACE = 4;
+}
+
+message Media {
+
+    enum MediaID {
+        WEAR_REQUEST = 0;
+        SYNC_PLAYER_INFO = 1;
+        CONTROL_PLAYER = 2;
+        GET_SONG_SUMMARY = 3;
+        ADD_SONGLIST = 4;
+        REMOVE_SONGLIST = 5;
+        RENAME_SONGLIST = 6;
+        QUERY_SONG_FOR_SONGLIST = 7;
+        ADD_SONG_TO_SONGLIST = 8;
+        REMOVE_SONG_FROM_SONGLIST = 9;
+        GET_SONG = 10;
+        ADD_SONG = 11;
+        REPORT_SONG_RESULT = 12;
+        REMOVE_SONG = 13;
+        GET_MEDIA_FILE_SUMMARY = 14;
+        SYNC_MEDIA_FILE_LIST = 15;
+        REPORT_MEDIA_FILE_LIST = 16;
+        REQUEST_MEDIA_FILE = 17;
+        REQUEST_MEDIA_FILE_LIST = 18;
+        CONFIRM_MEDIA_FILE = 19;
+        REQUEST_RECORD = 20;
+        GET_RECORD_STATUS = 21;
+        REPORT_RECORD_STATUS = 22;
+    }
+
+    oneof payload {
+        PlayerInfo player_info = 1;
+        PlayerControl player_control = 2;
+        SongSummary song_summary = 3;
+        Songlist.Request songlist_request = 4;
+        Songlist.Response songlist_response = 5;
+        Song.GetRequest song_get_request = 6;
+        Song.GetResponse song_get_response = 7;
+        Song.AddRequest song_add_request = 8;
+        Song.AddResponse song_add_response = 9;
+        Song.ReportResult song_report_result = 10;
+        Song.RemoveRequest song_remove_request = 11;
+        Song.RemoveResponse song_remove_response = 12;
+        MediaFile.Summary media_file_summary = 13;
+        MediaFile.List media_file_list = 14;
+        MediaFile.Identifier media_file_identifier = 15;
+        MediaFile.Identifier.List media_file_identifiers = 16;
+        RecordRequest record_request = 17;
+        RecordResponse record_response = 18;
+        RecordStatus record_status = 19;
+    }
+}
+
+message PlayerInfo {
+
+    enum State {
+        NONE = 0;
+        PLAYING = 1;
+        PAUSE = 2;
+        STOP = 3;
+        NO_PERMISSION = 10;
+    }
+
+    required State state = 1;
+    optional uint32 volume = 2;
+    required string player_name = 3;
+    required string song_title = 4;
+    required string song_artist = 5;
+    optional uint32 current_position = 6;
+    optional uint32 duration = 7;
+}
+
+message PlayerControl {
+
+    enum Command {
+        PLAY = 0;
+        PAUSE = 1;
+        STOP = 2;
+        PREV = 3;
+        NEXT = 4;
+        ADJUST_VOLUME = 5;
+    }
+
+    required Command command = 1;
+    optional uint32 volume = 2;
+}
+
+message SongSummary {
+    required uint32 support_media_format = 1;
+    required uint32 song_count = 2;
+    required uint32 songlist_limit = 3;
+    repeated Songlist list = 4;
+}
+
+message Songlist {
+
+    message Request {
+
+        enum Cmd {
+            ADD = 1;
+            REMOVE = 2;
+            RENAME = 3;
+            QUERY_SONG = 4;
+            ADD_SONG = 5;
+            REMOVE_SONG = 6;
+        }
+        
+        required Cmd cmd = 1;
+        required uint32 id = 2;
+        required string name = 3;
+        required bytes song_ids = 4;
+    }
+
+    message Response {
+
+        enum Code {
+            NO_ERROR = 0;
+            CMD_NOT_SUPPORT = 1;
+            EXCEED_LIMIT = 2;
+            ID_EXIST = 3;
+            ID_NOT_FOUND = 4;
+        }
+
+        required Code code = 1;
+        required bytes song_ids = 2;
+    }
+
+    required uint32 id = 1;
+    required string name = 2;
+    required uint32 song_count = 3;
+}
+
+message Song {
+
+    message GetRequest {
+        required uint32 index = 1;
+    }
+
+    message GetResponse {
+        repeated Song list = 1;
+        required uint32 next_index = 2;
+    }
+
+    message AddRequest {
+        required Song song = 1;
+    }
+
+    message AddResponse {
+        required PrepareStatus prepare_status = 1;
+        optional uint32 expected_slice_length = 2;
+    }
+
+    message ReportResult {
+
+        enum Code {
+            SUCCESS = 0;
+            ID_NOT_MATCH = 1;
+            FAIL = 2;
+        }
+
+        required Code code = 1;
+        optional bytes id = 2;
+    }
+
+    message RemoveRequest {
+        required bytes id = 1;
+    }
+
+    message RemoveResponse {
+        required bool success = 1;
+    }
+
+    required bytes id = 1;
+    required string name = 2;
+    required uint32 size = 3;
+    optional uint32 duration = 4;
+    required string album = 5;
+    required string artist = 6;
+}
+
+message MediaFile {
+
+    enum Type {
+        JPEG = 0;
+        PNG = 1;
+        MP4 = 2;
+        QUICKTIME = 3;
+        PCM = 4;
+        OPUS = 5;
+        SBC = 6;
+        MSBC = 7;
+    }
+
+    message Summary {
+
+        message Item {
+            required Type type = 1;
+            required uint32 count = 2;
+        }
+
+        repeated Item list = 1;
+    }
+
+    message List {
+        repeated MediaFile list = 1;
+    }
+
+    message Identifier {
+
+        message List {
+            repeated Identifier list = 1;
+        }
+
+        required string id = 1;
+        required bool thumbnail = 2;
+    }
+
+}
+
+message RecordRequest {
+    required RecordType type = 1;
+    required uint32 action = 2;
+}
+
+message RecordResponse {
+    required uint32 code = 1;
+    optional MediaFile.Identifier media_file_id = 2;
+    optional uint32 duration = 3;
+}
+
+message RecordStatus {
+
+    message ExtraData {
+        required MediaFile media_file = 1;
+        required uint32 status = 2;
+    }
+
+    required LimitValue duration = 1;
+    optional LimitValue size = 2;
+    optional ExtraData extra_data = 3;
+}

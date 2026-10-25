@@ -93,7 +93,7 @@ class OkHttpFetcher(private val policyProvider: () -> BridgePolicy) : HttpFetche
                 // 非法头名直接丢弃，不要让整个请求失败
             }
         }
-        if (!hasUa) builder.header("User-Agent", "KldxstStudio/1.0 (wearable bridge)")
+        if (!hasUa) builder.header("User-Agent", "KdSync/2.0 (wearable bridge)")
         val raw = req.body
         val contentType = req.headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value
         // GET/HEAD 不允许带 body，否则 OkHttp 直接抛 IllegalArgumentException

@@ -1,0 +1,303 @@
+syntax = "proto2";
+
+package protocol;
+option java_package = "com.kldxst.studio.proto";
+option java_multiple_files = true;
+
+import "wear_common.proto";
+
+enum CallType {
+    NOTHING = 0;
+    INCOMING_CALL = 1;
+    MISSED_CALL = 2;
+    OUTGOING_CALL = 3;
+}
+
+enum ReplyResult {
+    REPLY_SUCCESS = 0;
+    TARGET_NOT_SUPPORT = 1;
+    NOTIFY_NOT_FOUND = 2;
+    NO_REPLY_PERMISSION = 3;
+    REPLY_FAIL = 4;
+}
+
+message Notification {
+
+    enum NotificationID
+    {
+        ADD_NOTIFY = 0;
+        REMOVE_NOTIFY = 1;
+        OPEN_NOTIFY = 8;
+        HANG_UP = 2;
+        INCOMING_CALL_MUTE = 5;
+        GET_APP_LIST = 3;
+        SET_APP = 4;
+        GET_AUTO_SCREEN = 6;
+        SET_AUTO_SCREEN = 7;
+        GET_REPLY_MSG = 9;
+        ADD_REPLY_MSG = 10;
+        REMOVE_REPLY_MSG = 11;
+        UPDATE_REPLY_MSG = 12;
+        REPLY_MSG_REQUEST = 13;
+        REPLY_MSG_RESULT = 14;
+        PREPARE_APP_ICON = 15;
+        APP_ICON_APPLY = 16;
+    }
+
+    oneof payload {
+        NotifyData data = 1;
+        NotifyId id = 2;
+        NotifyData.List data_list = 3;
+        NotifyId.List id_list = 4;
+        AppInfo app_info = 5;
+        AppInfo.List app_info_list = 6;
+        bool enable_auto_screen = 7;
+        ReplyMsg.Target reply_msg_target = 8;
+        ReplyMsg reply_msg = 9;
+        ReplyMsg.Removal reply_msg_removal = 10;
+        ReplyMsg.Result reply_msg_result = 11;
+        ReplyRequest reply_request = 12;
+        ReplyResult reply_result = 13;
+        PrepareAppIcon.Request app_icon_request = 14;
+        PrepareAppIcon.Response app_icon_response = 15;
+        AppIconApply app_icon_apply = 16;
+    }
+
+}
+
+message NotifyData {
+
+    message List {
+        repeated NotifyData list = 1;
+    }
+
+    message Progress {
+        required uint32 section_count = 1;
+        required uint32 progress = 2;
+        optional bytes color = 3;
+    }
+
+    message Text {
+        required string chars = 1;
+        optional bytes color = 2;
+    }
+
+    message Info {
+        required Text title = 1;
+        optional Text sub_title = 2;
+        optional Text content = 3;
+        optional Text sub_content = 4;
+        optional Text special_title = 5;
+        optional bytes special_title_bg = 6;
+    }
+
+    message Focus {
+        required uint32 style = 1;
+        required Text title = 2;
+        required Text content = 3;
+        required Text desc = 4;
+        optional Progress progress = 5;
+        optional bool updatable = 6;
+        optional uint32 sequence = 7;
+    }
+
+    message FocusV2 {
+        required uint32 scene = 1;
+        required string ticker = 2;
+        required Info basic_info = 3;
+        optional Info hint_info = 4;
+        optional Progress progress = 5;
+        optional bool updatable = 6;
+        optional uint32 sequence = 7;
+    }
+
+    required string app_id = 1;
+    required string app_name = 2;
+    required string title = 3;
+    required string sub_title = 4;
+    required string text = 5;
+    required string date = 6;
+    required uint32 uid = 7;
+    required string app_group = 9;
+    required string key = 12;
+    optional CallType call_type = 8;
+    required string call_number = 10;
+    optional bool support_reply = 11;
+    optional bool support_open = 13;
+    optional Focus focus = 14;
+    optional FocusV2 focus_v2 = 15;
+}
+
+message NotifyId {
+
+    message List {
+        repeated NotifyId list = 1;
+    }
+
+    required uint32 uid = 1;
+    required string app_id = 2;
+    required string app_group = 3;
+    required string key = 4;
+}
+
+message ReplyMsg {
+
+    enum Target
+    {
+        SMS = 1;
+        WECHAT = 2;
+    }
+
+    enum Result
+    {
+        SUCCESS = 0;
+        EXCEED_LIMIT = 1;
+        INVALID_ID = 2;
+        FAIL = 10;
+    }
+
+    message Removal {
+        required Target target = 1;
+        repeated uint32 id = 2;
+    }
+
+    required Target target = 1;
+    repeated string contents = 2;
+    optional uint32 support_max_numbers = 3;
+}
+
+message ReplyRequest {
+    required ReplyMsg.Target target = 1;
+    required string contents = 2;
+    required bool need_result = 3;
+    oneof data {
+        string phone_number = 4;
+        NotifyId notify_id = 5;
+    };
+}
+
+message PrepareAppIcon {
+
+    message Request {
+        required string package_name = 1;
+        optional uint32 support_compress_mode = 2;
+    }
+
+    message Response {
+        required PrepareStatus prepare_status = 1;
+        optional ImageFormat support_image_format = 2;
+        optional uint32 expected_max_size = 3;
+        optional uint32 select_compress_mode = 4;
+        optional uint32 expected_slice_length = 5;
+    }
+
+}
+
+message AppIconApply {
+    required string package_name = 1;
+}
+
+message AppInfo {
+
+    enum Type {
+        NOTIFICATION = 0;
+        CALL = 1;
+        WECHAT = 2;
+        QQ = 3;
+        ALIPAY = 4;
+        OTHER = 5;
+        SMS = 6;
+        MAIL = 7;
+        WEIBO = 8;
+        TAOBAO = 9;
+        TIKTOK = 10;
+        DINGDING = 11;
+        MIHOME = 12;
+        XIAOHONGSHU = 13;
+        PINDUODUO = 14;
+        KUAISHOU = 15;
+        QQMUSIC = 16;
+        DIDI = 17;
+        BAIDUMAP = 18;
+        GAODEMAP = 19;
+        CLOUDMUSIC = 20;
+        KUGOU = 21;
+        BAIDU = 22;
+        QQMAIL = 23;
+        QQZONE = 24;
+        TENCENTNEWS = 25;
+        TOUTIAO = 26;
+        WEWORK = 27;
+        MEITUAN = 28;
+        KEEP = 29;
+        YOUKU = 30;
+        QQLIVE = 31;
+        IQIYI = 32;
+        BILIBILI = 33;
+        TIKTOKLITE = 34;
+        KUSISHOULITE = 35;
+        XIMALAYA = 36;
+        WEISHI = 37;
+        DIANPING = 38;
+        MEITUANWM = 39;
+        ELEME = 40;
+        ZHIHU = 41;
+        XIANYU = 42;
+        TAOBAOLITE = 43;
+        JD = 44;
+        DEWU = 45;
+        TMALL = 46;
+        SUNING = 47;
+        TICKET12306 = 48;
+        CCB = 49;
+        UNIONPAY = 50;
+        CMB = 51;
+        JDJR = 52;
+        CB = 53;
+        ICBC = 54;
+        ZSSH = 55;
+        ABC = 56;
+        JTBANK = 57;
+        WEREAD = 58;
+        SHUQI = 59;
+        QQBROWSER = 60;
+        UCBROWSER = 61;
+        SOUL = 62;
+        MOMO = 63;
+        TANTAN = 64;
+        DOUBAN = 65;
+        TIEBA = 66;
+        WUBA = 67;
+        WHATSAPP = 68;
+        VIBER = 69;
+        SNAPCHAT = 70;
+        SKYPE = 71;
+        TELEGRAM = 72;
+        FBMESSENGER = 73;
+        DISCORD = 74;
+        KAKAO = 75;
+        VKONTAKTE = 76;
+        LINE = 77;
+        TWITTER = 78;
+        GMAIL = 79;
+        OUTLOOK = 80;
+        FB = 81;
+        NAVER = 82;
+        HANGOUT = 83;
+        BIP = 84;
+        OK = 85;
+        SHARECHAT = 86;
+        MAMBA = 87;
+        INSTAGRAM = 88;
+        YOUTUBE = 89;
+        WPS = 90;
+    }
+
+    message List {
+        repeated AppInfo list = 1;
+    }
+
+    required uint32 app_type = 1;
+    required bool enable = 2;
+
+}
