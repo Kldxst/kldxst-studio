@@ -152,8 +152,10 @@ class MiWear(
         val cb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val dev = result.device ?: return
-                val name = try { dev.name } catch (e: SecurityException) { null } ?: return
                 val record = result.scanRecord
+                val name = try { dev.name } catch (e: SecurityException) { null }
+                    ?: record?.deviceName
+                    ?: "(未命名)"
                 val uuids = record?.serviceUuids.orEmpty().map { it.uuid.toString().lowercase() }
                 val xiaomi = uuids.any { it.startsWith("0000fe95") || it.startsWith("0000fd") }
                 val pid = record?.serviceData?.entries
