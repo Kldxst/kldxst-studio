@@ -74,13 +74,18 @@ suspend fun MiWearSession.installWatchFace(
     if (pr.prepareStatus.number != 0) {
         return MassResult(pr.prepareStatus.number, "表盘准备未就绪（status=${pr.prepareStatus.number}）")
     }
-    sendMass(fileData, 16, onProgress)
-    val result = awaitPacket(
+    val waiter = preparePacket(
         WearPacket.Type.WATCH_FACE.number,
-        WearWatchFace.WatchFaceID.REPORT_INSTALL_RESULT.number,
-        120_000
+        WearWatchFace.WatchFaceID.REPORT_INSTALL_RESULT.number
     )
-    val r = result.watchFace?.takeIf { it.hasInstallResult() }?.installResult
-        ?: return MassResult(-1, "设备未返回表盘安装结果")
-    return MassResult(r.code.number, if (r.code.number == 2) "表盘安装成功" else "表盘安装失败 code=${r.code.number}")
+    try {
+        sendMass(fileData, 16, onProgress)
+        val result = awaitPacket(waiter, 120_000)
+        val r = result.watchFace?.takeIf { it.hasInstallResult() }?.installResult
+            ?: return MassResult(-1, "设备未返回表盘安装结果")
+        return MassResult(r.code.number, if (r.code.number == 2) "表盘安装成功" else "表盘安装失败 code=${r.code.number}")
+    } catch (e: Exception) {
+        cancelPacket(waiter)
+        throw e
+    }
 }

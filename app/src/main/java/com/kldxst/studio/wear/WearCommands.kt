@@ -295,15 +295,20 @@ suspend fun MiWearSession.installQuickApp(
         return MassResult(appResp.prepareStatus.number, "安装准备未就绪（status=${appResp.prepareStatus.number}）")
     }
 
-    sendMass(fileData, 64, onProgress)
-    val result = awaitPacket(
+    val waiter = preparePacket(
         WearPacket.Type.THIRDPARTY_APP.number,
-        ThirdpartyApp.ThirdpartyAppID.REPORT_INSTALL_RESULT.number,
-        120_000
+        ThirdpartyApp.ThirdpartyAppID.REPORT_INSTALL_RESULT.number
     )
-    val r = result.thirdpartyApp?.takeIf { it.hasInstallResult() }?.installResult
-        ?: return MassResult(-1, "设备未返回安装结果")
-    return MassResult(r.code.number, if (r.code.number == 0) "安装成功" else "安装失败 code=${r.code.number}")
+    try {
+        sendMass(fileData, 64, onProgress)
+        val result = awaitPacket(waiter, 120_000)
+        val r = result.thirdpartyApp?.takeIf { it.hasInstallResult() }?.installResult
+            ?: return MassResult(-1, "设备未返回安装结果")
+        return MassResult(r.code.number, if (r.code.number == 0) "安装成功" else "安装失败 code=${r.code.number}")
+    } catch (e: Exception) {
+        cancelPacket(waiter)
+        throw e
+    }
 }
 
 suspend fun MiWearSession.sendMass(

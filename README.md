@@ -23,7 +23,7 @@ PB      WearPacket{type, id, oneof payload}  (proto2, protobuf-lite)
 ```
 
 - **SPP**：`00001101-...`，先 insecure 再 secure，SDP 失败 fallback RFCOMM 5/1；
-  连接后先发 12 字节 Hello `BA DC FE 00 C0 03 00 00 01 00 EF`。
+  连接后先发 11 字节厂商 Hello `BA DC FE 00 C0 03 00 00 01 00 EF`。
 - **BLE**：服务 `FE95`，写 `005f`，通知 `005e`，探测 `0050`；MTU 请求 247；
   `WRITE_TYPE_NO_RESPONSE`，每片 12 ms。
 - **认证**：3 步 protobuf（Account 26/27）；HMAC-SHA256 KDF（tag `miwear-auth`）

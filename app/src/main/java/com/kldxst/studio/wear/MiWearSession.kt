@@ -205,17 +205,36 @@ class MiWearSession(
         sendL1(L2Codec.encode(channel, opcode, payload))
     }
 
-    suspend fun awaitPacket(type: Int, id: Int, timeoutMs: Long = 120_000): WearPacket {
+    /** 在发送大文件前先占位，避免设备在最后一个分片后立刻回的结果被丢掉。 */
+    class PacketWait internal constructor(
+        internal val key: String,
+        internal val slot: CompletableDeferred<WearPacket>
+    )
+
+    fun preparePacket(type: Int, id: Int): PacketWait {
         val key = "$type:$id"
         val slot = CompletableDeferred<WearPacket>()
         val old = pending.putIfAbsent(key, slot)
         if (old != null) throw IllegalStateException("命令 $key 已在等待回包")
+        return PacketWait(key, slot)
+    }
+
+    suspend fun awaitPacket(waiter: PacketWait, timeoutMs: Long = 120_000): WearPacket {
         return try {
-            withTimeoutOrNull(timeoutMs) { slot.await() }
-                ?: throw IllegalStateException("等待设备事件超时（$key）")
+            withTimeoutOrNull(timeoutMs) { waiter.slot.await() }
+                ?: throw IllegalStateException("等待设备事件超时（${waiter.key}）")
         } finally {
-            pending.remove(key, slot)
+            pending.remove(waiter.key, waiter.slot)
         }
+    }
+
+    suspend fun awaitPacket(type: Int, id: Int, timeoutMs: Long = 120_000): WearPacket {
+        val waiter = preparePacket(type, id)
+        return awaitPacket(waiter, timeoutMs)
+    }
+
+    fun cancelPacket(waiter: PacketWait) {
+        pending.remove(waiter.key, waiter.slot)
     }
 
     private suspend fun sendL1(payload: ByteArray) {
