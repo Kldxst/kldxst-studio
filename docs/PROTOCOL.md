@@ -9,7 +9,7 @@ Mi Fitness 3.59.1 静态分析。行号与证据见 `_reverse/reports/astrobox-s
 |---|---|
 | SPP UUID | `00001101-0000-1000-8000-00805F9B34FB` |
 | SPP 连接 | insecure → secure；SDP 失败 fallback channel 5，再 1 |
-| SPP Hello | `BA DC FE 00 C0 03 00 00 01 00 EF`（12B） |
+| SPP Hello | `BA DC FE 00 C0 03 00 00 01 00 EF`（11B） |
 | BLE 服务 | `0000FE95-0000-1000-8000-00805F9B34FB` |
 | BLE 写 / 通知 / 探测 | `005f` / `005e` / `0050` |
 | BLE 写入 | WRITE_TYPE_NO_RESPONSE，每片 12 ms；MTU 请求 247 |

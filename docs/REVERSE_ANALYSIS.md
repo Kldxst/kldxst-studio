@@ -17,7 +17,7 @@
 
 1. 真实 L1 是 8 字节头 + CRC16-ARC；旧 KdSync 的 4 字节 `A5` 头完全错误。
 2. 真实栈是 L1 SAR（StartReq/Rsp + ACK/NAK + 窗口）→ L2 channel/opcode → protobuf。
-3. SPP 必须发 12B Hello；BLE 必须用 FE95/005f/005e/0050、NO_RESPONSE + 12ms。
+3. SPP 必须发 11B 厂商 Hello；BLE 必须用 FE95/005f/005e/0050、NO_RESPONSE + 12ms。
 4. authkey 是三步 HMAC-SHA256 KDF + AES-128-CCM，不是单次 HMAC。
 5. MASS 格式与数据类型已完全还原；应用/表盘/固件共用 MASS。
 6. 业务身份是 `WearPacket.type + id`，不是单字节命令号。
