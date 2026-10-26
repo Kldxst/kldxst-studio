@@ -3,10 +3,10 @@
 - 版本：`2.0.0`（versionCode 3）
 - 包名：`com.kldxst.studio`
 - 显示名：KdSync
-- 构建时间：2026-10-26（本地 Gradle 8.7 / JDK 17 / compileSdk 35；GitHub Actions 复验中）
-- APK：`out/app-release.apk`
-- 大小：4,832,352 bytes
-- SHA-256：`8B315A8C1D6D9AA9817E58AD51EE93C6BE7ECD6AD5027A483B4BFB1D7B86CFFD`
+- 构建时间：2026-10-26（GitHub Actions run `40346194377`，JDK 17 / Gradle 8.7 / compileSdk 35）
+- APK：`out/app-release.apk`（GitHub Actions 产物）
+- 大小：4,832,348 bytes
+- SHA-256：`47BC6050D0A491B1EFCD63BBC6D8D546AC8345C486B78D809E331F2BACE8F521`
 - 签名：APK Signature Scheme v2，证书 `CN=Kldxst Studio, O=Kldxst, C=CN`
 - 证书 SHA-256：`c8765110630acc2e32713a6dd6b32311060eb47db8e0b374287c6b5ba6a8f631`
 
